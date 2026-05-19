@@ -1,6 +1,5 @@
 <?php
-// app/Http/Middleware/CheckRole.php
-
+// CCC
 namespace App\Http\Middleware;
 
 use Closure;

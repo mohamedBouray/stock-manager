@@ -216,7 +216,7 @@ export default function Sidebar({ currentRole, activeItem, onNavigate, collapsed
                     </div>
                 ))}
             </nav>
-
+// CCC
             {/* Footer */}
             <div className={`border-t border-white/10 bg-[#0A1520] ${collapsed ? 'px-2 py-3' : 'px-3 py-4'}`}>
                 {/* {!collapsed && (

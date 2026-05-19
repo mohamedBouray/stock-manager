@@ -32,7 +32,7 @@ function Login({ hasUsers }) {
                 // ✅ Sauvegarder token et user
                 localStorage.setItem("token", response.data.token);
                 localStorage.setItem("user", JSON.stringify(response.data.user));
-                
+               // CCC 
                 console.log("Login success");
                 console.log("Token saved:", localStorage.getItem("token"));
                 console.log("User saved:", localStorage.getItem("user"));

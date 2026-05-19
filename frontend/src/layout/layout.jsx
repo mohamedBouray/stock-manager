@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import Sidebar from '../lib/components/Sidebar';
 import Header from '../lib/components/Header';
-
+// CCC
 export default function Layout() {
     const [currentRole, setCurrentRole] = useState('user');
     const [collapsed, setCollapsed] = useState(false);

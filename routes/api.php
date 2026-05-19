@@ -1,5 +1,5 @@
 <?php
-
+// CCC
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -57,7 +57,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/email/verify-code', [CodeVerificationController::class, 'verify']);
     Route::post('/email/resend-code', [CodeVerificationController::class, 'resend']);
 
-    // ✅ Admin Routes (SANS middleware('admin') pour éviter erreur)
     Route::prefix('admin')->group(function () {
 
         // Settings

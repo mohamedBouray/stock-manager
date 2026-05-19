@@ -2,7 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import api from '../lib/apis/axios';
 
 const AuthContext = createContext();
-
+// CCC
 export const useAuth = () => {
     const context = useContext(AuthContext);
     if (!context) {

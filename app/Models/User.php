@@ -95,7 +95,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->role === 'admin';
     }
-
+// CCC
     public function isMagasinier(): bool
     {
         return $this->role === 'magasinier';

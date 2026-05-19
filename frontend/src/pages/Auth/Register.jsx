@@ -11,6 +11,7 @@ function Register({ hasUsers }) {
         password_confirmation: "",
         role: "user",
     });
+    // CCC
     const [errors, setErrors] = useState({});
     const [successMessage, setSuccessMessage] = useState("");
     const [showPassword, setShowPassword] = useState(false);

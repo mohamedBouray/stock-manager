@@ -1,7 +1,7 @@
-// src/pages/Auth/ChooseRole.jsx
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-
+// CCC
 export default function ChooseRole() {
   const navigate = useNavigate();
 

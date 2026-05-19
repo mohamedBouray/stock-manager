@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-
+// CCC
 const ROLE_CONFIG = {
     admin: {
         label: 'Administrateur',

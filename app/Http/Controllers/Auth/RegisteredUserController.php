@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 
+// CCC
 class RegisteredUserController extends Controller
 {
     public function store(Request $request) {
