@@ -1,0 +1,31 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema; // 👈 1. Check had l-use push l-foug
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        // 🚀 2. Bdel hna rjja3ha "Schema::create" f blasst Route::create
+        Schema::create('email_verification_codes', function (Blueprint $table) {
+            $table->id();
+            $table->string('email')->index();
+            $table->string('code');
+            $table->timestamp('expires_at');
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('email_verification_codes');
+    }
+};
