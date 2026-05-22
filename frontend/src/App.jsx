@@ -29,6 +29,14 @@ import MagasinierParametres from './pages/Magasinier/Parametres';
 import UserDashboard from './pages/User/Dashboard';
 import UserParametres from './pages/User/Parametres';
 
+
+import Demandes from './pages/User/Demandes';
+import Reservations from './pages/User/Reservations';
+import ConsultationStock from './pages/User/ConsultationStock';
+import GestionDemandes from './pages/Magasinier/GestionDemandes';
+import GestionReservations from './pages/Magasinier/GestionReservations';
+import MouvementsStock from './pages/Magasinier/MouvementsStock';
+
 // Dashboard paths
 const DASHBOARDS = {
     admin: "/admin/dashboard",
@@ -197,7 +205,11 @@ function AppContent() {
                 <Route element={<ProtectedRoute allowedRoles={['magasinier']} />}>
                     <Route element={<Layout />}>
                         <Route path="/magasinier/dashboard" element={<MagasinierDashboard />} />
-                        <Route path="/magasinier/Parametres" element={<MagasinierParametres />} />
+                        <Route path="/magasinier/parametres" element={<MagasinierParametres />} />
+                        {/* ⬇️ AJOUTER CETTE ROUTE ⬇️ */}
+                        <Route path="/magasinier/demandes" element={<GestionDemandes />} />
+                        <Route path="/magasinier/reservations" element={<GestionReservations />} />
+                        <Route path="/magasinier/mouvements" element={<MouvementsStock />} />
                     </Route>
                 </Route>
                 
@@ -205,7 +217,11 @@ function AppContent() {
                 <Route element={<ProtectedRoute allowedRoles={['user']} />}>
                     <Route element={<Layout />}>
                         <Route path="/user/dashboard" element={<UserDashboard />} />
-                        <Route path="/user/Parametres" element={<UserParametres />} />
+                        <Route path="/user/parametres" element={<UserParametres />} />
+                        {/* ⬇️ AJOUTER CES ROUTES ⬇️ */}
+                        <Route path="/demandes" element={<Demandes />} />
+                        <Route path="/reservations" element={<Reservations />} />
+                        <Route path="/consultation-stock" element={<ConsultationStock />} />
                     </Route>
                 </Route>
                 

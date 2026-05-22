@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-
+import Notifications from './Notifications';
 const ROLE_CONFIG = {
     admin: {
         label: 'Administrateur',
@@ -31,40 +31,6 @@ function TI({ name, size = 18, color, className = '' }) {
 }
 
 
-function NotifDropdown({ open, onClose }) {
-    const NOTIFS = [
-        { id: 1, icon: 'bell-ringing', color: '#C0392B', title: 'Stock critique', desc: 'Article REF-042 sous le seuil minimum', time: 'il y a 5 min' },
-        { id: 2, icon: 'file-description', color: '#0288D1', title: 'Nouvelle demande', desc: 'Demande #DEM-2024-087 en attente', time: 'il y a 23 min' },
-        { id: 3, icon: 'shopping-cart', color: '#1B5E20', title: 'Commande livrée', desc: 'BC-2024-031 réceptionnée au magasin', time: 'il y a 1h' },
-    ];
-
-    if (!open) return null;
-
-    return (
-        <div className="absolute top-full right-0 mt-2 w-80 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center">
-                <span className="text-xs font-bold text-[#0D1B2A]">Notifications</span>
-                <span className="text-[11px] text-[#0288D1] cursor-pointer font-medium">Tout marquer lu</span>
-            </div>
-            {NOTIFS.map(n => (
-                <div key={n.id} className="flex gap-3 px-4 py-3 border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: n.color + '15' }}>
-                        <TI name={n.icon} size={15} color={n.color} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <div className="text-xs font-semibold text-[#0D1B2A]">{n.title}</div>
-                        <div className="text-[11px] text-[#607080] mt-0.5 truncate">{n.desc}</div>
-                        <div className="text-[10px] text-gray-400 mt-1">{n.time}</div>
-                    </div>
-                    <div className="w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0" style={{ background: n.color }} />
-                </div>
-            ))}
-            <div className="px-4 py-2 text-center">
-                <span className="text-xs text-[#0288D1] cursor-pointer font-medium">Voir toutes les notifications</span>
-            </div>
-        </div>
-    );
-}
 function UserDropdown({ open, onClose, currentRole, role, user, onNavigate, onLogout, isLoggingOut }) {
     if (!open) return null;
 
@@ -134,7 +100,6 @@ export default function Header({ currentRole, pageTitle, breadcrumb = [], onTogg
     const notifRef = useRef(null);
     const userDropdownRef = useRef(null);
     
-    // Récupérer l'utilisateur depuis localStorage
     const [user, setUser] = useState(null);
     
     useEffect(() => {
@@ -224,21 +189,8 @@ export default function Header({ currentRole, pageTitle, breadcrumb = [], onTogg
             </div>
 
             <div ref={notifRef} className="relative">
-                <button
-                    onClick={() => setNotifOpen(o => !o)}
-                    className={`w-9 h-9 rounded-lg cursor-pointer flex items-center justify-center relative transition-all duration-150
-                        ${notifOpen ? 'bg-opacity-10 border' : 'bg-transparent border border-white/20'}`}
-                    style={{
-                        background: notifOpen ? role.accent + '22' : 'transparent',
-                        borderColor: notifOpen ? role.accent + '60' : 'rgba(255,255,255,0.1)'
-                    }}
-                    onMouseEnter={e => { if (!notifOpen) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-                    onMouseLeave={e => { if (!notifOpen) e.currentTarget.style.background = 'transparent'; }}
-                >
-                    <TI name="bell" size={17} color={notifOpen ? role.accent : 'rgba(255,255,255,0.6)'} />
-                    <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#C0392B] border border-[#0D1B2A]" />
-                </button>
-                <NotifDropdown open={notifOpen} onClose={() => setNotifOpen(false)} />
+                
+                <Notifications />
             </div>
 
             <div className="w-px h-5 bg-white/20" />

@@ -57,62 +57,72 @@ const MENU_SECTIONS = {
     ],
     
     magasinier: [
-        {
-            id: 'dashboard',
-            title: 'Tableau de bord',
-            icon: 'layout-dashboard',
-            items: [
-                { label: 'Dashboard', icon: 'home', path: '/magasinier/dashboard' },
-            ],
-        },
-        {
-            id: 'magasin',
-            title: 'Gestion Magasin',
-            icon: 'building-warehouse',
-            items: [
-                { label: 'Fiches Articles', icon: 'package', path: '/articles' },
-                { label: 'Mouvements de Stock', icon: 'arrows-transfer-up-down', path: '/mouvements' },
-                { label: 'Inventaire Physique', icon: 'scan', path: '/inventaire' },
-                { label: 'Suivi & Alertes', icon: 'bell-ringing', path: '/alertes' },
-            ],
-        },
-        {
-            id: 'parametres',
-            title: 'Parametres',
-            icon: 'settings',
-            items: [
-                { label: 'Parametres', icon: 'settings', path: '/Magasinier/Parametres' },
-            ],
-        },
-    ],
+    {
+        id: 'dashboard',
+        title: 'Tableau de bord',
+        icon: 'layout-dashboard',
+        items: [
+            { label: 'Dashboard', icon: 'home', path: '/magasinier/dashboard' },
+        ],
+    },
+    {
+        id: 'demandes',
+        title: 'Gestion Demandes',
+        icon: 'clipboard-list',
+        items: [
+            { label: 'Demandes reçues', icon: 'file-description', path: '/magasinier/demandes' },
+            { label: 'Réservations', icon: 'calendar-event', path: '/magasinier/reservations' },
+        ],
+    },
+    {
+        id: 'magasin',
+        title: 'Gestion Magasin',
+        icon: 'building-warehouse',
+        items: [
+            { label: 'Fiches Articles', icon: 'package', path: '/articles' },
+            { label: 'Mouvements de Stock', icon: 'arrows-transfer-up-down', path: '/magasinier/mouvements' },
+            { label: 'Inventaire Physique', icon: 'scan', path: '/inventaire' },
+            { label: 'Suivi & Alertes', icon: 'bell-ringing', path: '/alertes' },
+        ],
+    },
+    {
+        id: 'parametres',
+        title: 'Paramètres',
+        icon: 'settings',
+        items: [
+            { label: 'Mon Profil', icon: 'user', path: '/magasinier/parametres' },
+        ],
+    },
+],
     
     user: [
-        {
-            id: 'dashboard',
-            title: 'Tableau de bord',
-            icon: 'layout-dashboard',
-            items: [
-                { label: 'Dashboard', icon: 'home', path: '/user/dashboard' },
-            ],
-        },
-        {
-            id: 'service',
-            title: 'Espace Service',
-            icon: 'clipboard-list',
-            items: [
-                { label: 'Mes Demandes Internes', icon: 'file-description', path: '/demandes' },
-                { label: 'Réservations', icon: 'calendar-event', path: '/reservations' },
-            ],
-        },
-        {
-            id: 'parametres',
-            title: 'Parametres',
-            icon: 'settings',
-            items: [
-                { label: 'Parametres', icon: 'settings', path: '/User/Parametres' },
-            ],
-        },
-    ],
+    {
+        id: 'dashboard',
+        title: 'Tableau de bord',
+        icon: 'layout-dashboard',
+        items: [
+            { label: 'Dashboard', icon: 'home', path: '/user/dashboard' },
+        ],
+    },
+    {
+        id: 'service',
+        title: 'Espace Service',
+        icon: 'clipboard-list',
+        items: [
+            { label: 'Mes Demandes', icon: 'file-description', path: '/demandes' },  // ⬅️ AJOUTER
+            { label: 'Réservations', icon: 'calendar-event', path: '/reservations' }, // ⬅️ AJOUTER
+            { label: 'Consultation Stock', icon: 'package', path: '/consultation-stock' }, // ⬅️ AJOUTER
+        ],
+    },
+    {
+        id: 'parametres',
+        title: 'Paramètres',
+        icon: 'settings',
+        items: [
+            { label: 'Mon Profil', icon: 'user', path: '/user/parametres' },
+        ],
+    },
+],
 };
 
 function TI({ name, size = 18, color, className = '' }) {

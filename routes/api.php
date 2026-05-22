@@ -12,9 +12,16 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\NewPasswordController;
 
 use App\Models\User;
+use App\Http\Controllers\ProfileController; 
 use App\Http\Controllers\Admin\SettingsController; 
 use App\Http\Controllers\Admin\AdminUserController;
-use App\Http\Controllers\ProfileController; 
+
+
+use App\Http\Controllers\User\DemandeController;
+use App\Http\Controllers\User\StockController;
+use App\Http\Controllers\User\ReservationController;
+
+
 
 Route::get('/check-db-status', function () {
     $hasUsers = User::exists();
@@ -52,6 +59,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/email/verify-code', [CodeVerificationController::class, 'verify']);
     Route::post('/email/resend-code', [CodeVerificationController::class, 'resend']);
 
+
+    Route::get('/messages/{demandeId}', [App\Http\Controllers\Api\MessageController::class, 'getConversation']);
+    Route::post('/messages/{demandeId}', [App\Http\Controllers\Api\MessageController::class, 'sendMessage']);
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [App\Http\Controllers\Api\NotificationController::class, 'index']);
+        Route::get('/unread-count', [App\Http\Controllers\Api\NotificationController::class, 'unreadCount']);
+        Route::post('/{id}/read', [App\Http\Controllers\Api\NotificationController::class, 'markAsRead']);
+        Route::post('/read-all', [App\Http\Controllers\Api\NotificationController::class, 'markAllAsRead']);
+    });
+
     Route::prefix('admin')->group(function () {
         // Users Management
         Route::get('/users',                        [AdminUserController::class, 'index']);
@@ -76,4 +93,79 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Route::post('/settings/{group}',      [SettingsController::class, 'update']);
         // Route::post('/settings/{group}/reset',[SettingsController::class, 'reset']);
     });
+// Routes pour Magasinier
+    Route::prefix('magasinier')->group(function () {
+        
+        // Demandes
+        Route::get('/demandes', [App\Http\Controllers\Magasinier\DemandeController::class, 'index']);
+        Route::post('/demandes/{id}/approuver', [App\Http\Controllers\Magasinier\DemandeController::class, 'approuver']);
+        Route::post('/demandes/{id}/refuser', [App\Http\Controllers\Magasinier\DemandeController::class, 'refuser']);
+        Route::post('/demandes/{id}/livrer', [App\Http\Controllers\Magasinier\DemandeController::class, 'livrer']);
+        // ✅ RÉSERVATIONS - AJOUTER CECI
+        Route::get('/reservations', [App\Http\Controllers\Magasinier\ReservationController::class, 'index']);
+        Route::post('/reservations/{id}/confirmer', [App\Http\Controllers\Magasinier\ReservationController::class, 'confirmer']);
+        Route::post('/reservations/{id}/annuler', [App\Http\Controllers\Magasinier\ReservationController::class, 'annuler']);
+        Route::get('/reservations/{id}', [App\Http\Controllers\Magasinier\ReservationController::class, 'show']);
+
+        Route::get('/magasins', [App\Http\Controllers\Magasinier\MagasinController::class, 'index']);
+            
+            // Mouvements de stock
+            Route::prefix('mouvements')->group(function () {
+                Route::get('/', [App\Http\Controllers\Magasinier\MouvementController::class, 'index']);
+                Route::get('/stats', [App\Http\Controllers\Magasinier\MouvementController::class, 'stats']);
+                Route::post('/entree', [App\Http\Controllers\Magasinier\MouvementController::class, 'entree']);
+                Route::post('/sortie', [App\Http\Controllers\Magasinier\MouvementController::class, 'sortie']);
+                Route::post('/ajustement', [App\Http\Controllers\Magasinier\MouvementController::class, 'ajustement']);
+            });
+
+
+    });
+
+
+
+
+
+
+
+
+
+
+
+    Route::prefix('user')->group(function () {
+        
+        // 📦 1. Gestion des Demandes
+        Route::prefix('demandes')->group(function () {
+            Route::get('/', [DemandeController::class, 'index']);          // Liste mes demandes
+            Route::post('/', [DemandeController::class, 'store']);         // Créer une demande
+            Route::get('/{id}', [DemandeController::class, 'show']);       // Voir une demande
+            Route::put('/{id}', [DemandeController::class, 'update']);     // Modifier une demande
+            Route::delete('/{id}', [DemandeController::class, 'destroy']); // Annuler une demande
+
+            Route::post('/{id}/archive', [DemandeController::class, 'archive']);
+            Route::get('/archives/list', [DemandeController::class, 'getArchives']);
+            Route::get('/{id}/pdf', [DemandeController::class, 'exportPDF']);
+
+            Route::get('/{id}/bon-livraison', [DemandeController::class, 'bonLivraison']);
+        });
+        
+        // 📦 2. Consultation Stock (Lecture seule)
+        Route::prefix('stock')->group(function () {
+            Route::get('/articles', [StockController::class, 'index']);     // Liste des articles
+            Route::get('/articles/{id}', [StockController::class, 'show']); // Détail d'un article
+            Route::get('/familles', [StockController::class, 'familles']);  // Liste des familles
+            Route::get('/categories', [StockController::class, 'categories']); // Liste des catégories
+            Route::get('/stats', [StockController::class, 'stats']);        // Statistiques stock
+        });
+        
+        // 📦 3. Gestion des Réservations
+        Route::prefix('reservations')->group(function () {
+            Route::get('/', [ReservationController::class, 'index']);       // Liste mes réservations
+            Route::post('/', [ReservationController::class, 'store']);      // Créer une réservation
+            Route::delete('/{id}', [ReservationController::class, 'destroy']); // Annuler une réservation
+            Route::get('/historique', [ReservationController::class, 'historique']);
+        });
+        
+
+    });
+    
 });

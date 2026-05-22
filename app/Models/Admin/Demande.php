@@ -1,0 +1,56 @@
+<?php
+namespace App\Models\Admin;
+
+use Illuminate\Database\Eloquent\Model;
+use App\Models\User;
+
+class Demande extends Model
+{
+    protected $table = 'demandes';
+    
+    protected $fillable = [
+        'user_id', 'article_id', 'quantite_demandee', 'quantite_accorde',
+        'statut', 'motif', 'commentaire_refus', 'date_demande',
+        'date_traitement', 'traite_par'
+    ];
+    
+    protected $casts = [
+        'date_demande' => 'datetime',
+        'date_traitement' => 'datetime',
+    ];
+    
+    // Relation avec l'utilisateur (demandeur)
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+    
+    // Relation avec l'article
+    public function article()
+    {
+        return $this->belongsTo(Article::class);
+    }
+    
+    // Relation avec l'utilisateur qui a traité
+    public function traitePar()
+    {
+        return $this->belongsTo(User::class, 'traite_par');
+    }
+    
+    // Statuts disponibles
+    public static function statuts()
+    {
+        return [
+            'en_attente' => 'En attente',
+            'approuvee' => 'Approuvée',
+            'refusee' => 'Refusée',
+            'livree' => 'Livrée'
+        ];
+    }
+    
+    // Vérifier si modifiable
+    public function estModifiable()
+    {
+        return $this->statut === 'en_attente';
+    }
+}
