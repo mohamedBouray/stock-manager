@@ -1,842 +1,844 @@
-// src/pages/Admin/Administration.jsx
 import React, { useState, useEffect } from 'react';
 import {
-  Users, Search, Plus, Edit, Trash2, Ban, CheckCircle,
-  UserPlus, Shield, Package, User, Settings, Save,
-  RotateCcw, Globe, Bell, Database, X, RefreshCw,
-  Activity, AlertTriangle, TrendingUp, Key
+    Users, Search, Edit, Trash2, Ban, CheckCircle,
+    UserPlus, Settings, X, RefreshCw,
+    Activity, AlertTriangle, Key, Download, User, UserCircle
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { useLocation } from 'react-router-dom';
 import api from '../../lib/apis/axios';
+import ActionConfirmModal from '../../lib/components/ActionConfirmModal';
+import Profile from '../../lib/components/Profile';
+import SettingsPanel from './SettingsPanel';
 
+
+// ─── Avatar coloré par rôle ───────────────────────────────────────────────────
+const ROLE_AVATAR = {
+    admin:      { bg: 'bg-indigo-100',  text: 'text-indigo-700' },
+    magasinier: { bg: 'bg-emerald-100', text: 'text-emerald-800' },
+    user:       { bg: 'bg-sky-100',     text: 'text-sky-700' },
+};
+
+function Avatar({ name, role }) {
+    const cfg = ROLE_AVATAR[role] || ROLE_AVATAR.user;
+    const initials = name
+        ? name.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
+        : 'U';
+    return (
+        <div className={`w-9 h-9 rounded-lg ${cfg.bg} ${cfg.text} flex items-center justify-center text-xs font-semibold shrink-0`}>
+            {initials}
+        </div>
+    );
+}
+
+// ─── Badge rôle ───────────────────────────────────────────────────────────────
+function RoleBadge({ role }) {
+    const cfg = {
+        admin:      { cls: 'bg-indigo-50 text-indigo-700',   label: 'Admin' },
+        magasinier: { cls: 'bg-emerald-50 text-emerald-800', label: 'Magasinier' },
+        user:       { cls: 'bg-sky-50 text-sky-700',         label: 'Demandeur' },
+    }[role] || { cls: 'bg-gray-100 text-gray-500', label: role };
+    return (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${cfg.cls}`}>
+            {cfg.label}
+        </span>
+    );
+}
+
+// ─── Badge statut ─────────────────────────────────────────────────────────────
+function StatusBadge({ blocked }) {
+    return blocked ? (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-red-50 text-red-700">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />
+            Bloqué
+        </span>
+    ) : (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-emerald-50 text-emerald-800">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block" />
+            Actif
+        </span>
+    );
+}
+
+// ─── Bouton action icône ──────────────────────────────────────────────────────
+function ActBtn({ onClick, title, hoverClass, children }) {
+    return (
+        <button
+            onClick={onClick}
+            title={title}
+            className={`w-7 h-7 rounded-md border border-gray-200 bg-white flex items-center justify-center text-gray-400 transition-all duration-100 hover:border-transparent ${hoverClass} cursor-pointer`}
+        >
+            {children}
+        </button>
+    );
+}
+
+// ─── Card stat ────────────────────────────────────────────────────────────────
+function StatCard({ label, value, sub, accentClass, iconWrapClass, iconTextClass, Icon }) {
+    return (
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 relative overflow-hidden">
+            <div className={`absolute top-0 left-0 right-0 h-0.5 rounded-t-2xl ${accentClass}`} />
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">{label}</p>
+            <p className="text-3xl font-medium tracking-tight text-gray-900 my-1">{value}</p>
+            <p className="text-xs text-gray-400">{sub}</p>
+            <div className={`absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-xl flex items-center justify-center ${iconWrapClass}`}>
+                <Icon size={18} className={iconTextClass} />
+            </div>
+        </div>
+    );
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+function Toast({ toast }) {
+    if (!toast) return null;
+    const danger = toast.type === 'danger';
+    return (
+        <div className={`fixed top-5 right-5 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium shadow-lg
+            ${danger ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
+            {danger ? <AlertTriangle size={15} /> : <CheckCircle size={15} />}
+            {toast.msg}
+        </div>
+    );
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+function Modal({ open, onClose, title, children }) {
+    if (!open) return null;
+    return (
+        <div
+            className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center"
+            onClick={onClose}
+        >
+            <div
+                className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl"
+                onClick={e => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between mb-5">
+                    <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 cursor-pointer p-1 rounded-md">
+                        <X size={18} />
+                    </button>
+                </div>
+                {children}
+            </div>
+        </div>
+    );
+}
+
+// ─── Helpers formulaire ───────────────────────────────────────────────────────
+const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100 transition';
+const labelCls = 'block text-xs font-medium text-gray-600 mb-1';
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function Administration() {
-  const [activeTab, setActiveTab] = useState('users');
-  const [loading, setLoading] = useState(true);
-  const [users, setUsers] = useState([]);
-  const [stats, setStats] = useState({});
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'user', password_confirmation: '' });
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [toast, setToast] = useState(null);
-  const [settings, setSettings] = useState({});
-  const [settingsTab, setSettingsTab] = useState('general');
-  const [saving, setSaving] = useState(false);
+    const [activeTab, setActiveTab]         = useState('users');
+    const [profileSection, setProfileSection] = useState('profile');
+    const [users, setUsers]                 = useState([]);
+    const [stats, setStats]                 = useState({});
+    const [search, setSearch]               = useState('');
+    const [roleFilter, setRoleFilter]       = useState('');
+    const [statusFilter, setStatusFilter]   = useState('');
+    const [showModal, setShowModal]         = useState(false);
+    const [editingUser, setEditingUser]     = useState(null);
+    const [formData, setFormData]           = useState({ name: '', email: '', password: '', role: 'user', password_confirmation: '' });
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [selectedUser, setSelectedUser]   = useState(null);
+    const [pwForm, setPwForm]               = useState({ password: '', confirmation: '' });
+    const [toast, setToast]                 = useState(null);
+    const [saving, setSaving]               = useState(false);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [searchTimeout, setSearchTimeout] = useState(null);
+    const [initialLoading, setInitialLoading] = useState(true);
 
-  // Fetch Users
-  const fetchUsers = async () => {
-    try {
-      const response = await api.get('/api/admin/users', {
-        params: { search, role: roleFilter, status: statusFilter }
-      });
-      setUsers(response.data.data || []);
-    } catch (error) {
-      console.error(error);
-      showToast('Erreur lors du chargement des utilisateurs', 'danger');
-    }
-  };
+    const location = useLocation();
+    const [actionModal, setActionModal] = useState({ 
+        isOpen: false, 
+        data: null, 
+        type: 'danger',
+        title: '',
+        message: '',
+        confirmText: 'Confirmer',
+        icon: null,
+        onConfirmAction: null
+    });
 
-  // Fetch Stats
-  const fetchStats = async () => {
-    try {
-      const response = await api.get('/api/admin/system/stats');
-      setStats(response.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
 
-  // Fetch Settings
-  const fetchSettings = async () => {
-    try {
-      const response = await api.get(`/api/admin/settings/${settingsTab}`);
-      setSettings(response.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
+    // ── Fetch ──────────────────────────────────────────────────────────────────
+    const fetchUsers = async (showLoading = false) => {
+        try {
+            if (showLoading) setSearchLoading(true);
+            const r = await api.get('/api/admin/users', {
+                params: { search, role: roleFilter, status: statusFilter },
+            });
+            setUsers(r.data.data || []);
+        } catch {
+            showToast('Erreur chargement utilisateurs', 'danger');
+        } finally {
+            if (showLoading) setSearchLoading(false);
+        }
+    };
 
-  useEffect(() => {
-    if (activeTab === 'users') {
-      setLoading(true);
-      Promise.all([fetchUsers(), fetchStats()]).finally(() => setLoading(false));
-    } else {
-      setLoading(true);
-      fetchSettings().finally(() => setLoading(false));
-    }
-  }, [activeTab, search, roleFilter, statusFilter, settingsTab]);
+    const fetchStats = async () => {
+        try {
+            const r = await api.get('/api/admin/system/stats');
+            setStats(r.data);
+        } catch {}
+    };
 
-  const showToast = (msg, type = 'success') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
-  };
+    // ── Effets ─────────────────────────────────────────────────────────────────
+    useEffect(() => {
+        const load = async () => {
+            setInitialLoading(true);
+            await Promise.all([fetchUsers(), fetchStats()]);
+            setInitialLoading(false);
+        };
+        load();
+    }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (editingUser) {
-        await api.put(`/api/admin/users/${editingUser.id}`, {
-          name: formData.name,
-          email: formData.email,
-          role: formData.role
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const tab     = params.get('tab');
+        const section = params.get('section');
+
+        if (tab === 'profile') {
+            setActiveTab('profile');
+            if (section === 'password') setProfileSection('password');
+        } else if (tab === 'settings') {
+            setActiveTab('settings');
+        } else {
+            setActiveTab('users');
+        }
+    }, [location.search]);
+
+    useEffect(() => {
+        if (searchTimeout) clearTimeout(searchTimeout);
+        const timeout = setTimeout(() => {
+            if (activeTab === 'users') fetchUsers(true);
+        }, 500);
+        setSearchTimeout(timeout);
+        return () => clearTimeout(timeout);
+    }, [search]);
+
+    useEffect(() => {
+        if (activeTab === 'users') fetchUsers(true);
+    }, [roleFilter, statusFilter]);
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    const showToast = (msg, type = 'success') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3200);
+    };
+
+    const handleResetFilters = () => {
+        setSearch('');
+        setRoleFilter('');
+        setStatusFilter('');
+        fetchUsers(true);
+    };
+
+    const openCreateModal = () => {
+        setEditingUser(null);
+        setFormData({ name: '', email: '', password: '', role: 'user', password_confirmation: '' });
+        setShowModal(true);
+    };
+
+    const openEditModal = (u) => {
+        setEditingUser(u);
+        setFormData({ name: u.name, email: u.email, password: '', role: u.role, password_confirmation: '' });
+        setShowModal(true);
+    };
+
+    const openPasswordModal = (u) => {
+        setSelectedUser(u);
+        setPwForm({ password: '', confirmation: '' });
+        setShowPasswordModal(true);
+    };
+
+    // ── Actions CRUD ───────────────────────────────────────────────────────────
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            if (editingUser) {
+                await api.put(`/api/admin/users/${editingUser.id}`, {
+                    name: formData.name, email: formData.email, role: formData.role,
+                });
+                showToast('Utilisateur modifié');
+            } else {
+                await api.post('/api/admin/users', formData);
+                showToast('Utilisateur créé');
+            }
+            setShowModal(false);
+            setEditingUser(null);
+            fetchUsers();
+            fetchStats();
+        } catch (err) {
+            showToast(err.response?.data?.message || 'Erreur', 'danger');
+        }
+    };
+
+    const openActionModal = ({ data, type, title, message, confirmText, icon, onConfirm }) => {
+        setActionModal({
+            isOpen: true,
+            data,
+            type, 
+            title,
+            message,
+            confirmText: confirmText || 'Confirmer',
+            icon: icon || null,
+            onConfirmAction: () => onConfirm(data)
         });
-        showToast('Utilisateur modifié avec succès');
-      } else {
-        await api.post('/api/admin/users', formData);
-        showToast('Utilisateur créé avec succès');
-      }
-      setShowModal(false);
-      setEditingUser(null);
-      setFormData({ name: '', email: '', password: '', role: 'user', password_confirmation: '' });
-      fetchUsers();
-      fetchStats();
-    } catch (error) {
-      showToast(error.response?.data?.message || 'Erreur', 'danger');
-    }
-  };
+    };
 
-  const handleBlock = async (user) => {
-    if (!confirm(`Bloquer ${user.name} ?`)) return;
-    try {
-      await api.post(`/api/admin/users/${user.id}/block`);
-      showToast(`${user.name} bloqué`);
-      fetchUsers();
-      fetchStats();
-    } catch (error) {
-      showToast('Erreur', 'danger');
-    }
-  };
 
-  const handleUnblock = async (user) => {
-    try {
-      await api.post(`/api/admin/users/${user.id}/unblock`);
-      showToast(`${user.name} débloqué`);
-      fetchUsers();
-      fetchStats();
-    } catch (error) {
-      showToast('Erreur', 'danger');
-    }
-  };
+    const closeActionModal = () => {
+        setActionModal(prev => ({ ...prev, isOpen: false, data: null }));
+    };
 
-  const handleDelete = async (user) => {
-    if (!confirm(`Supprimer définitivement ${user.name} ?`)) return;
-    try {
-      await api.delete(`/api/admin/users/${user.id}`);
-      showToast(`${user.name} supprimé`);
-      fetchUsers();
-      fetchStats();
-    } catch (error) {
-      showToast(error.response?.data?.message || 'Erreur', 'danger');
-    }
-  };
-
- // src/pages/Admin/Administration.jsx
-const handleResetPassword = async (e) => {
-    e.preventDefault();
-    const password = e.target.password.value;
-    const confirmation = e.target.confirmation.value;
-    
-    if (password !== confirmation) {
-        showToast('Les mots de passe ne correspondent pas', 'danger');
-        return;
-    }
-    
-    if (password.length < 8) {
-        showToast('Le mot de passe doit contenir au moins 8 caractères', 'danger');
-        return;
-    }
-    
-    setSaving(true);
-    try {
-        await api.post(`/api/admin/users/${selectedUser.id}/reset-password`, { 
-            password: password,
-            password_confirmation: confirmation 
+    const handleDelete = (user) => {
+        openActionModal({
+            data: user,
+            type: 'danger',
+            title: 'Supprimer l\'utilisateur',
+            message: `Êtes-vous sûr de vouloir supprimer définitivement ${user.name} ? Cette action est irréversible.`,
+            confirmText: 'Supprimer',
+            icon: Trash2,
+            onConfirm: async (u) => {
+                await api.delete(`/api/admin/users/${u.id}`);
+                showToast(`${u.name} supprimé`);
+                fetchUsers();
+                fetchStats();
+            }
         });
-        showToast(`Mot de passe réinitialisé pour ${selectedUser.name}`);
-        setShowPasswordModal(false);
-        setSelectedUser(null);
+    };
+
+    const handleBlock = (user) => {
+        openActionModal({
+            data: user,
+            type: 'warning',
+            title: 'Bloquer l\'utilisateur',
+            message: `Êtes-vous sûr de vouloir bloquer ${user.name} ?`,
+            confirmText: 'Bloquer',
+            icon: Ban,
+            onConfirm: async (u) => {
+                await api.post(`/api/admin/users/${u.id}/block`);
+                showToast(`${u.name} bloqué`);
+                fetchUsers();
+                fetchStats();
+            }
+        });
+    };
+
+    const handleUnblock = (user) => {
+        openActionModal({
+            data: user,
+            type: 'success',
+            title: 'Débloquer l\'utilisateur',
+            message: `Êtes-vous sûr de vouloir débloquer ${user.name} ?`,
+            confirmText: 'Débloquer',
+            icon: CheckCircle,
+            onConfirm: async (u) => {
+                await api.post(`/api/admin/users/${u.id}/unblock`);
+                showToast(`${u.name} débloqué`);
+                fetchUsers();
+                fetchStats();
+            }
+        });
+    };
+
+    const handleResetPasswordConfirm = (user) => {
+        openActionModal({
+            data: user,
+            type: 'info',
+            title: 'Réinitialiser mot de passe',
+            message: `Êtes-vous sûr de vouloir réinitialiser le mot de passe de ${user.name} ?`,
+            confirmText: 'Réinitialiser',
+            icon: Key,
+            onConfirm: async (u) => {
+                openPasswordModal(u);
+            }
+        });
+    };
+   
+
+    const handleResetPassword = async (e) => {
+        e.preventDefault();
+        if (pwForm.password !== pwForm.confirmation) {
+            showToast('Mots de passe différents', 'danger');
+            return;
+        }
+        if (pwForm.password.length < 8) {
+            showToast('Minimum 8 caractères', 'danger');
+            return;
+        }
+        setSaving(true);
+        try {
+            await api.post(`/api/admin/users/${selectedUser.id}/reset-password`, {
+                password: pwForm.password,
+                password_confirmation: pwForm.confirmation,
+            });
+            showToast(`Mot de passe réinitialisé pour ${selectedUser.name}`);
+            setShowPasswordModal(false);
+            setSelectedUser(null);
+        } catch (err) {
+            showToast(err.response?.data?.message || 'Erreur', 'danger');
+        } finally {
+            setSaving(false);
+        }
+    };
+const handleExportUsers = () => {
+    try {
+        // Récupérer les données (déjà dans users)
+        const usersData = users;
+        
+        if (usersData.length === 0) {
+            showToast('Aucun utilisateur à exporter', 'warning');
+            return;
+        }
+        
+        // Préparer les données pour Excel
+        const excelData = usersData.map(user => ({
+            'ID': user.id,
+            'Nom': user.name,
+            'Email': user.email,
+            'Téléphone': user.phone || '',
+            'Rôle': user.role === 'admin' ? 'Administrateur' : user.role === 'magasinier' ? 'Magasinier' : 'Demandeur',
+            'Statut': user.is_blocked ? 'Bloqué' : 'Actif',
+            'Dernière connexion': user.last_login_at ? new Date(user.last_login_at).toLocaleDateString('fr-FR') : 'Jamais',
+            'Date création': new Date(user.created_at).toLocaleDateString('fr-FR')
+        }));
+        
+        // Créer une feuille de calcul
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        
+        // Ajuster la largeur des colonnes (optionnel)
+        const colWidths = [
+            { wch: 8 },  // ID
+            { wch: 25 }, // Nom
+            { wch: 30 }, // Email
+            { wch: 15 }, // Téléphone
+            { wch: 15 }, // Rôle
+            { wch: 10 }, // Statut
+            { wch: 15 }, // Dernière connexion
+            { wch: 12 }  // Date création
+        ];
+        worksheet['!cols'] = colWidths;
+        
+        // Créer un classeur
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Utilisateurs');
+        
+        // Exporter le fichier
+        const filename = `utilisateurs_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`;
+        XLSX.writeFile(workbook, filename);
+        
+        showToast(`${usersData.length} utilisateur(s) exporté(s) vers Excel`);
     } catch (error) {
         console.error(error);
-        const message = error.response?.data?.message || 'Erreur lors de la réinitialisation';
-        showToast(message, 'danger');
-    } finally {
-        setSaving(false);
+        showToast('Erreur lors de l\'export', 'danger');
     }
 };
 
-  const handleSaveSettings = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await api.post(`/api/admin/settings/${settingsTab}`, settings);
-      showToast('Paramètres sauvegardés');
-    } catch (error) {
-      showToast('Erreur', 'danger');
-    } finally {
-      setSaving(false);
+    // ── Guard : chargement initial ─────────────────────────────────────────────
+    if (initialLoading) {
+        return (
+            <div className="flex items-center justify-center h-96">
+                <div className="w-10 h-10 border-[3px] border-gray-200 border-t-emerald-600 rounded-full animate-spin" />
+            </div>
+        );
     }
-  };
 
-  const handleResetSettings = async () => {
-    if (!confirm('Réinitialiser tous les paramètres ?')) return;
-    try {
-      await api.post(`/api/admin/settings/${settingsTab}/reset`);
-      fetchSettings();
-      showToast('Paramètres réinitialisés');
-    } catch (error) {
-      showToast('Erreur', 'danger');
-    }
-  };
+    // ── Délégation vers sous-pages ─────────────────────────────────────────────
+    if (activeTab === 'profile')  return <Profile initialSection={profileSection} />;
+    if (activeTab === 'settings') return <SettingsPanel />;
 
-  const filteredUsers = users.filter(u => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
-    const matchRole = !roleFilter || u.role === roleFilter;
-    const matchStatus = !statusFilter || (statusFilter === 'blocked' ? u.is_blocked : !u.is_blocked);
-    return matchSearch && matchRole && matchStatus;
-  });
-
-  const statsCards = [
-    { label: 'Total utilisateurs', value: stats.total_users || 0, icon: Users, color: 'bg-blue-500' },
-    { label: 'Actifs', value: stats.active_users || 0, icon: CheckCircle, color: 'bg-green-500' },
-    { label: 'Bloqués', value: stats.blocked_users || 0, icon: Ban, color: 'bg-red-500' },
-    { label: 'Nouveaux (7j)', value: stats.users_last_week || 0, icon: UserPlus, color: 'bg-orange-500' },
-  ];
-
-  const getRoleBadge = (role) => {
-    const styles = {
-      admin: 'bg-purple-100 text-purple-800',
-      magasinier: 'bg-blue-100 text-blue-800',
-      user: 'bg-green-100 text-green-800'
-    };
-    const labels = { admin: 'Admin', magasinier: 'Magasinier', user: 'Demandeur' };
-    return <span className={`px-2 py-1 text-xs rounded-full ${styles[role]}`}>{labels[role]}</span>;
-  };
-
-  const settingsTabs = [
-    { id: 'general', label: '🏠 Général', icon: Globe },
-    { id: 'stock', label: '📦 Stock', icon: Package },
-    { id: 'notifications', label: '🔔 Notifications', icon: Bell },
-    { id: 'backup', label: '💾 Backup', icon: Database },
-  ];
-
-  if (loading) {
+    // ── Rendu principal ────────────────────────────────────────────────────────
     return (
-      <div className="flex justify-center items-center h-96">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#006233]"></div>
-      </div>
-    );
-  }
+        <div className="p-3 max-w-full">
+            <Toast toast={toast} />
 
-  return (
-    <div className="p-6 space-y-6">
-      {/* Toast Notification */}
-      {toast && (
-        <div className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
-          toast.type === 'danger' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-green-100 text-green-700 border border-green-200'
-        }`}>
-          {toast.type === 'danger' ? <AlertTriangle size={16} /> : <CheckCircle size={16} />}
-          {toast.msg}
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">⚙️ Administration</h1>
-          <p className="text-gray-500">Gestion des utilisateurs et configuration du système</p>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 bg-white rounded-t-xl">
-        <button
-          onClick={() => setActiveTab('users')}
-          className={`px-6 py-3 text-sm font-medium flex items-center gap-2 transition-colors ${
-            activeTab === 'users'
-              ? 'border-b-2 border-[#006233] text-[#006233]'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Users size={18} /> Utilisateurs
-        </button>
-        <button
-          onClick={() => setActiveTab('settings')}
-          className={`px-6 py-3 text-sm font-medium flex items-center gap-2 transition-colors ${
-            activeTab === 'settings'
-              ? 'border-b-2 border-[#006233] text-[#006233]'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Settings size={18} /> Paramètres Système
-        </button>
-      </div>
-
-      {/* Users Tab */}
-      {activeTab === 'users' && (
-        <div className="space-y-6">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {statsCards.map((stat, index) => {
-              const Icon = stat.icon;
-              return (
-                <div key={index} className="bg-white rounded-xl shadow-sm p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-500">{stat.label}</p>
-                      <p className="text-2xl font-bold text-gray-800">{stat.value}</p>
-                    </div>
-                    <div className={`${stat.color} p-3 rounded-xl`}>
-                      <Icon size={20} className="text-white" />
-                    </div>
-                  </div>
+            {/* En-tête */}
+            <div className="flex items-start justify-between mb-5">
+                <div>
+                    <h1 className="text-xl font-medium tracking-tight text-gray-900">Administration</h1>
+                    <p className="text-sm text-gray-400 mt-0.5">Gestion des utilisateurs et configuration du système</p>
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Filters */}
-          <div className="bg-white rounded-xl shadow-sm p-4">
-            <div className="flex flex-wrap gap-4">
-              <div className="flex-1 min-w-[200px] relative">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Rechercher un utilisateur..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:border-[#006233]"
-                />
-              </div>
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="px-3 py-2 border rounded-lg focus:outline-none"
-              >
-                <option value="">Tous les rôles</option>
-                <option value="admin">Administrateurs</option>
-                <option value="magasinier">Magasiniers</option>
-                <option value="user">Demandeurs</option>
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 border rounded-lg focus:outline-none"
-              >
-                <option value="">Tous les statuts</option>
-                <option value="active">Actifs</option>
-                <option value="blocked">Bloqués</option>
-              </select>
-              <button
-                onClick={() => { setSearch(''); setRoleFilter(''); setStatusFilter(''); fetchUsers(); }}
-                className="px-3 py-2 text-gray-600 border rounded-lg hover:bg-gray-50 flex items-center gap-2"
-              >
-                <RefreshCw size={16} /> Réinitialiser
-              </button>
-              <button
-                onClick={() => { setEditingUser(null); setFormData({ name: '', email: '', password: '', role: 'user', password_confirmation: '' }); setShowModal(true); }}
-                className="px-4 py-2 bg-[#006233] text-white rounded-lg hover:bg-[#004d26] flex items-center gap-2"
-              >
-                <UserPlus size={18} /> Nouvel utilisateur
-              </button>
-            </div>
-          </div>
-
-          {/* Users Table */}
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Utilisateur</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rôle</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dernière connexion</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan="5" className="px-6 py-12 text-center text-gray-500">Aucun utilisateur trouvé</td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map((user) => (
-                      <tr key={user.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#006233] to-[#C0392B] flex items-center justify-center">
-                              <span className="font-bold text-white">{user.name?.charAt(0) || 'U'}</span>
-                            </div>
-                            <div>
-                              <p className="font-medium text-gray-800">{user.name}</p>
-                              <p className="text-sm text-gray-500">{user.email}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">{getRoleBadge(user.role)}</td>
-                        <td className="px-6 py-4">
-                          {user.is_blocked ? (
-                            <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Bloqué</span>
-                          ) : (
-                            <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Actif</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
-                          {user.last_login_at ? new Date(user.last_login_at).toLocaleDateString() : 'Jamais'}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => { setEditingUser(user); setFormData({ name: user.name, email: user.email, password: '', role: user.role, password_confirmation: '' }); setShowModal(true); }}
-                              className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            <button
-                              onClick={() => { setSelectedUser(user); setShowPasswordModal(true); }}
-                              className="p-1 text-amber-600 hover:bg-amber-50 rounded"
-                            >
-                              <Key size={18} />
-                            </button>
-                            {user.is_blocked ? (
-                              <button onClick={() => handleUnblock(user)} className="p-1 text-green-600 hover:bg-green-50 rounded">
-                                <CheckCircle size={18} />
-                              </button>
-                            ) : (
-                              <button onClick={() => handleBlock(user)} className="p-1 text-orange-600 hover:bg-orange-50 rounded">
-                                <Ban size={18} />
-                              </button>
-                            )}
-                            <button onClick={() => handleDelete(user)} className="p-1 text-red-600 hover:bg-red-50 rounded">
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Recent Activities */}
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Activity size={18} className="text-gray-500" />
-              <h3 className="font-semibold text-gray-800">Activités récentes</h3>
-            </div>
-            <div className="space-y-3">
-              {stats.recent_activities?.map((activity, index) => (
-                <div key={index} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                    <User size={14} className="text-gray-500" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-800">{activity.user?.name}</p>
-                    <p className="text-xs text-gray-500">{activity.details}</p>
-                  </div>
-                  <p className="text-xs text-gray-400">{new Date(activity.created_at).toLocaleString()}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Settings Tab */}
-      {activeTab === 'settings' && (
-        <div className="space-y-6">
-          <div className="flex border-b border-gray-200 bg-white rounded-t-xl px-4">
-            {settingsTabs.map(tab => {
-              const Icon = tab.icon;
-              return (
                 <button
-                  key={tab.id}
-                  onClick={() => setSettingsTab(tab.id)}
-                  className={`px-4 py-3 text-sm font-medium transition-colors flex items-center gap-2 ${
-                    settingsTab === tab.id
-                      ? 'border-b-2 border-[#006233] text-[#006233]'
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
+                    onClick={openCreateModal}
+                    className="inline-flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-2 rounded-lg text-xs font-medium cursor-pointer transition"
                 >
-                  <Icon size={16} /> {tab.label}
+                    <UserPlus size={14} /> Nouvel utilisateur
                 </button>
-              );
-            })}
-          </div>
-
-          <form onSubmit={handleSaveSettings} className="bg-white rounded-xl shadow-sm p-6">
-            {/* General Settings */}
-            {settingsTab === 'general' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nom de l'application</label>
-                  <input
-                    type="text"
-                    value={settings.app_name || 'ISTAHT Stock Manager'}
-                    onChange={(e) => setSettings({ ...settings, app_name: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#006233]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Couleur principale</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={settings.primary_color || '#006233'}
-                      onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })}
-                      className="w-12 h-10 border rounded cursor-pointer"
-                    />
-                    <input
-                      type="text"
-                      value={settings.primary_color || '#006233'}
-                      onChange={(e) => setSettings({ ...settings, primary_color: e.target.value })}
-                      className="flex-1 px-3 py-2 border rounded-lg"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Couleur secondaire</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={settings.secondary_color || '#C0392B'}
-                      onChange={(e) => setSettings({ ...settings, secondary_color: e.target.value })}
-                      className="w-12 h-10 border rounded cursor-pointer"
-                    />
-                    <input
-                      type="text"
-                      value={settings.secondary_color || '#C0392B'}
-                      onChange={(e) => setSettings({ ...settings, secondary_color: e.target.value })}
-                      className="flex-1 px-3 py-2 border rounded-lg"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Format de date</label>
-                  <select
-                    value={settings.date_format || 'd/m/Y'}
-                    onChange={(e) => setSettings({ ...settings, date_format: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  >
-                    <option value="d/m/Y">DD/MM/YYYY</option>
-                    <option value="m/d/Y">MM/DD/YYYY</option>
-                    <option value="Y-m-d">YYYY-MM-DD</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fuseau horaire</label>
-                  <select
-                    value={settings.timezone || 'Africa/Casablanca'}
-                    onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  >
-                    <option value="Africa/Casablanca">Africa/Casablanca</option>
-                    <option value="Europe/Paris">Europe/Paris</option>
-                    <option value="UTC">UTC</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Langue par défaut</label>
-                  <select
-                    value={settings.language || 'fr'}
-                    onChange={(e) => setSettings({ ...settings, language: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  >
-                    <option value="fr">Français</option>
-                    <option value="ar">العربية</option>
-                    <option value="en">English</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {/* Stock Settings */}
-            {settingsTab === 'stock' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Seuil d'alerte stock bas</label>
-                  <input
-                    type="number"
-                    value={settings.low_stock_threshold || 10}
-                    onChange={(e) => setSettings({ ...settings, low_stock_threshold: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Notification quand le stock est inférieur à ce nombre</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Seuil critique</label>
-                  <input
-                    type="number"
-                    value={settings.critical_stock_threshold || 5}
-                    onChange={(e) => setSettings({ ...settings, critical_stock_threshold: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Alerte critique quand le stock est inférieur</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">Activer codes-barres</label>
-                  <input
-                    type="checkbox"
-                    checked={settings.enable_barcode || false}
-                    onChange={(e) => setSettings({ ...settings, enable_barcode: e.target.checked })}
-                    className="w-4 h-4 text-[#006233] rounded"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">Génération automatique des commandes</label>
-                  <input
-                    type="checkbox"
-                    checked={settings.auto_generate_orders || false}
-                    onChange={(e) => setSettings({ ...settings, auto_generate_orders: e.target.checked })}
-                    className="w-4 h-4 text-[#006233] rounded"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Notifications Settings */}
-            {settingsTab === 'notifications' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">Notifications par email</label>
-                  <input
-                    type="checkbox"
-                    checked={settings.email_notifications || false}
-                    onChange={(e) => setSettings({ ...settings, email_notifications: e.target.checked })}
-                    className="w-4 h-4 text-[#006233] rounded"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">Alertes stock bas</label>
-                  <input
-                    type="checkbox"
-                    checked={settings.stock_alert_notification || false}
-                    onChange={(e) => setSettings({ ...settings, stock_alert_notification: e.target.checked })}
-                    className="w-4 h-4 text-[#006233] rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email pour les alertes</label>
-                  <input
-                    type="email"
-                    value={settings.low_stock_email || ''}
-                    onChange={(e) => setSettings({ ...settings, low_stock_email: e.target.value })}
-                    placeholder="admin@istaht.ma"
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Backup Settings */}
-            {settingsTab === 'backup' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-gray-700">Backup automatique</label>
-                  <input
-                    type="checkbox"
-                    checked={settings.auto_backup || false}
-                    onChange={(e) => setSettings({ ...settings, auto_backup: e.target.checked })}
-                    className="w-4 h-4 text-[#006233] rounded"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fréquence de backup</label>
-                  <select
-                    value={settings.backup_frequency || 'weekly'}
-                    onChange={(e) => setSettings({ ...settings, backup_frequency: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    disabled={!settings.auto_backup}
-                  >
-                    <option value="daily">Quotidien</option>
-                    <option value="weekly">Hebdomadaire</option>
-                    <option value="monthly">Mensuel</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Jours de rétention</label>
-                  <input
-                    type="number"
-                    value={settings.backup_retention_days || 30}
-                    onChange={(e) => setSettings({ ...settings, backup_retention_days: parseInt(e.target.value) })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    disabled={!settings.auto_backup}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Buttons */}
-            <div className="flex justify-between gap-3 mt-6 pt-4 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={handleResetSettings}
-                className="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50"
-              >
-                <RotateCcw size={16} className="inline mr-2" /> Réinitialiser
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-white bg-[#006233] rounded-lg hover:bg-[#004d26] disabled:opacity-50"
-              >
-                <Save size={16} className="inline mr-2" /> {saving ? 'Sauvegarde...' : 'Sauvegarder'}
-              </button>
             </div>
-          </form>
 
-          {/* System Info */}
-          <div className="bg-gray-50 rounded-xl p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-              <Database size={16} /> Informations Système
-            </h3>
-            <div className="text-xs text-gray-500 space-y-1">
-              <p>📊 Base de données: SQLite</p>
-              <p>🔐 Authentification: Laravel Sanctum</p>
-              <p>📱 Interface: React + Tailwind CSS</p>
-              <p>🔄 Backup: {settings.auto_backup ? 'Activé' : 'Désactivé'}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Add/Edit User */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl w-full max-w-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">{editingUser ? 'Modifier l\'utilisateur' : 'Nouvel utilisateur'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X size={20} />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nom complet</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#006233]"
-                  required
+            {/* Stats */}
+            <div className="grid grid-cols-4 gap-3 mb-5">
+                <StatCard 
+                    label="Total utilisateurs" 
+                    value={stats.total_users || 0} 
+                    sub={`${stats.new_users_this_month || 0} ce mois`}  
+                    accentClass="bg-sky-500"     
+                    iconWrapClass="bg-sky-50"     
+                    iconTextClass="text-sky-600"     
+                    Icon={Users}      
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
-                  required
+                <StatCard 
+                    label="Actifs"             
+                    value={stats.active_users || 0}   
+                    sub={`${stats.active_percentage || 0}% du total`}  
+                    accentClass="bg-emerald-600" 
+                    iconWrapClass="bg-emerald-50" 
+                    iconTextClass="text-emerald-700" 
+                    Icon={CheckCircle} 
                 />
-              </div>
-              {!editingUser && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
-                    <input
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirmation</label>
-                    <input
-                      type="password"
-                      value={formData.password_confirmation}
-                      onChange={(e) => setFormData({ ...formData, password_confirmation: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg"
-                      required
-                    />
-                  </div>
-                </>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Rôle</label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
-                >
-                  <option value="user">Demandeur</option>
-                  <option value="magasinier">Magasinier</option>
-                  <option value="admin">Administrateur</option>
-                </select>
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">
-                  Annuler
-                </button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-[#006233] text-white rounded-lg hover:bg-[#004d26]">
-                  {editingUser ? 'Modifier' : 'Créer'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <StatCard 
+                    label="Bloqués"            
+                    value={stats.blocked_users || 0}  
+                    sub={`${stats.blocked_percentage || 0}% du total`}  
+                    accentClass="bg-red-500"     
+                    iconWrapClass="bg-red-50"     
+                    iconTextClass="text-red-600"     
+                    Icon={Ban}         
+                />
+                <StatCard 
+                    label="Nouveaux (7j)"      
+                    value={stats.users_last_week || 0} 
+                    sub="Cette semaine" 
+                    accentClass="bg-orange-400"  
+                    iconWrapClass="bg-orange-50"  
+                    iconTextClass="text-orange-500"  
+                    Icon={UserPlus}    
+                />
+            </div>
 
-      {/* Modal Reset Password */}
-        {showPasswordModal && selectedUser && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-xl w-full max-w-md p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold">Réinitialiser mot de passe</h2>
-                        <button onClick={() => setShowPasswordModal(false)} className="text-gray-400 hover:text-gray-600">
-                            <X size={20} />
+            {/* Tabs */}
+            <div className="inline-flex gap-0 mb-5 bg-white border border-gray-200 rounded-2xl p-1">
+                {[
+                    { id: 'users',    label: 'Utilisateurs',      Icon: Users      },
+                    { id: 'settings', label: 'Paramètres Système', Icon: Settings   },
+                    { id: 'profile',  label: 'Mon Profil',         Icon: UserCircle },
+                ].map(t => (
+                    <button
+                        key={t.id}
+                        onClick={() => setActiveTab(t.id)}
+                        className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-medium cursor-pointer transition
+                            ${activeTab === t.id ? 'bg-emerald-700 text-white' : 'bg-transparent text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <t.Icon size={13} /> {t.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* ── Onglet Utilisateurs ────────────────────────────────────────────── */}
+            <div>
+                {/* Toolbar */}
+                <div className="flex items-center gap-2.5 mb-3.5 flex-wrap">
+                    {/* Recherche */}
+                    <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 h-[34px] bg-white" style={{ flex: '1 1 0', maxWidth: 280 }}>
+                        <Search size={13} className="text-gray-400" />
+                        <input
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            placeholder="Rechercher un utilisateur…"
+                            className="border-none outline-none text-xs text-gray-900 w-full bg-transparent"
+                        />
+                        {searchLoading && (
+                            <div className="w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin ml-1" />
+                        )}
+                        {!searchLoading && search && (
+                            <X size={12} className="text-gray-400 cursor-pointer" onClick={() => setSearch('')} />
+                        )}
+                    </div>
+
+                    {/* Filtres */}
+                    <select
+                        value={roleFilter}
+                        onChange={e => setRoleFilter(e.target.value)}
+                        className="h-[34px] border border-gray-200 rounded-lg px-2.5 text-xs text-gray-900 bg-white outline-none cursor-pointer"
+                    >
+                        <option value="">Tous les rôles</option>
+                        <option value="admin">Admin</option>
+                        <option value="magasinier">Magasinier</option>
+                        <option value="user">Demandeur</option>
+                    </select>
+
+                    <select
+                        value={statusFilter}
+                        onChange={e => setStatusFilter(e.target.value)}
+                        className="h-[34px] border border-gray-200 rounded-lg px-2.5 text-xs text-gray-900 bg-white outline-none cursor-pointer"
+                    >
+                        <option value="">Tous les statuts</option>
+                        <option value="active">Actifs</option>
+                        <option value="blocked">Bloqués</option>
+                    </select>
+
+                    <button
+                        onClick={handleResetFilters}
+                        className="inline-flex items-center gap-1.5 h-[34px] px-3 border border-gray-200 rounded-lg bg-white text-xs text-gray-500 hover:text-gray-700 cursor-pointer transition"
+                    >
+                        <RefreshCw size={12} /> Réinitialiser
+                    </button>
+
+                    <div className="relative">
+                        <button
+                            onClick={handleExportUsers}
+                            className="inline-flex items-center gap-1.5 h-[34px] px-3 border border-gray-200 rounded-lg bg-white text-xs text-gray-500 hover:text-gray-700 cursor-pointer transition">
+                            <Download size={12} /> Exporter 
                         </button>
                     </div>
-                    <p className="text-sm text-gray-500 mb-4">Pour: <span className="font-medium text-gray-800">{selectedUser.name}</span></p>
-                    <form onSubmit={handleResetPassword} className="space-y-4">
+                </div>
+
+                {/* Table */}
+                <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+                    {/* En-tête */}
+                    <div className="flex items-center px-4 h-9 bg-gray-50 border-b border-gray-200">
+                        <div className="flex-1 text-[10.5px] font-medium uppercase tracking-wide text-gray-400">Utilisateur</div>
+                        <div className="w-28 text-[10.5px] font-medium uppercase tracking-wide text-gray-400">Rôle</div>
+                        <div className="w-24 text-[10.5px] font-medium uppercase tracking-wide text-gray-400">Statut</div>
+                        <div className="w-36 text-[10.5px] font-medium uppercase tracking-wide text-gray-400">Dernière connexion</div>
+                        <div className="w-28 text-[10.5px] font-medium uppercase tracking-wide text-gray-400 text-right">Actions</div>
+                    </div>
+
+                    {/* Lignes */}
+                    {users.length === 0 ? (
+                        <div className="py-12 text-center text-sm text-gray-400">Aucun utilisateur trouvé</div>
+                    ) : users.map(u => (
+                        <div
+                            key={u.id}
+                            className="flex items-center px-4 h-14 border-b border-gray-100 hover:bg-gray-50/70 transition-colors"
+                        >
+                            {/* Identité */}
+                            <div className="flex-1 flex items-center gap-2.5">
+                                <Avatar name={u.name} role={u.role} />
+                                <div>
+                                    <div className="text-sm font-medium text-gray-900">{u.name}</div>
+                                    <div className="text-xs text-gray-400 mt-0.5">{u.email}</div>
+                                </div>
+                            </div>
+
+                            {/* Rôle */}
+                            <div className="w-28"><RoleBadge role={u.role} /></div>
+
+                            {/* Statut */}
+                            <div className="w-24"><StatusBadge blocked={u.is_blocked} /></div>
+
+                            {/* Connexion */}
+                            <div className="w-36 text-xs text-gray-400">
+                                {u.last_login_at
+                                    ? new Date(u.last_login_at).toLocaleDateString('fr-FR')
+                                    : 'Jamais'}
+                            </div>
+
+                            {/* Actions */}
+                            <div className="w-28 flex items-center justify-end gap-1">
+                                <ActBtn title="Modifier" hoverClass="hover:bg-blue-50 hover:text-blue-600" onClick={() => openEditModal(u)}>
+                                    <Edit size={13} />
+                                </ActBtn>
+                                <ActBtn title="Réinitialiser mot de passe" hoverClass="hover:bg-yellow-50 hover:text-yellow-600" onClick={() => handleResetPasswordConfirm(u)}>
+                                    <Key size={13} />
+                                </ActBtn>
+                                {u.is_blocked ? (
+                                    <ActBtn title="Débloquer" hoverClass="hover:bg-emerald-50 hover:text-emerald-700" onClick={() => handleUnblock(u)}>
+                                        <CheckCircle size={13} />
+                                    </ActBtn>
+                                ) : (
+                                    <ActBtn title="Bloquer" hoverClass="hover:bg-orange-50 hover:text-orange-600" onClick={() => handleBlock(u)}>
+                                        <Ban size={13} />
+                                    </ActBtn>
+                                )}
+                                <ActBtn title="Supprimer" hoverClass="hover:bg-red-50 hover:text-red-600" onClick={() => handleDelete(u)}>
+                                    <Trash2 size={13} />
+                                </ActBtn>
+                            </div>
+                        </div>
+                    ))}
+
+                    {/* Footer */}
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-t border-gray-200">
+                        <span className="text-xs text-gray-400">
+                            {users.length} utilisateur{users.length !== 1 ? 's' : ''} affiché{users.length !== 1 ? 's' : ''}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Activités récentes */}
+                {stats.recent_activities?.length > 0 && (
+                    <div className="bg-white border border-gray-200 rounded-2xl mt-4 p-5">
+                        <div className="flex items-center gap-2 mb-3.5">
+                            <Activity size={15} className="text-gray-400" />
+                            <span className="text-sm font-medium text-gray-900">Activités récentes</span>
+                        </div>
+                        <div className="flex flex-col gap-0.5">
+                            {stats.recent_activities.map((a, i) => (
+                                <div
+                                    key={i}
+                                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                                >
+                                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                        <User size={13} className="text-gray-400" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="text-xs font-medium text-gray-900">{a.user?.name}</div>
+                                        <div className="text-xs text-gray-400 mt-0.5">{a.details}</div>
+                                    </div>
+                                    <div className="text-xs text-gray-300">
+                                        {new Date(a.created_at).toLocaleString('fr-FR')}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* ── Modal Créer / Modifier ─────────────────────────────────────────── */}
+            <Modal
+                open={showModal}
+                onClose={() => setShowModal(false)}
+                title={editingUser ? "Modifier l'utilisateur" : 'Nouvel utilisateur'}
+            >
+                <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+                    <div>
+                        <label className={labelCls}>Nom complet</label>
+                        <input
+                            required
+                            className={inputCls}
+                            placeholder="Nom"
+                            value={formData.name}
+                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                        />
+                    </div>
+                    <div>
+                        <label className={labelCls}>Email</label>
+                        <input
+                            required
+                            type="email"
+                            placeholder="Nom@exemple.com"
+                            className={inputCls}
+                            value={formData.email}
+                            onChange={e => setFormData({ ...formData, email: e.target.value })}
+                        />
+                    </div>
+
+                    {!editingUser && (
+                        <>
+                            <div>
+                                <label className={labelCls}>Mot de passe</label>
+                                <input
+                                    required
+                                    type="password"
+                                    className={inputCls}
+                                    placeholder="*********"
+                                    value={formData.password}
+                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className={labelCls}>Confirmation</label>
+                                <input
+                                    required
+                                    type="password"
+                                    placeholder="*********"
+                                    className={inputCls}
+                                    value={formData.password_confirmation}
+                                    onChange={e => setFormData({ ...formData, password_confirmation: e.target.value })}
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    <div>
+                        <label className={labelCls}>Rôle</label>
+                        <select
+                            className={inputCls}
+                            value={formData.role}
+                            onChange={e => setFormData({ ...formData, role: e.target.value })}
+                        >
+                            <option value="user">Demandeur</option>
+                            <option value="magasinier">Magasinier</option>
+                        </select>
+                    </div>
+
+                    <div className="flex gap-2.5 mt-1">
+                        <button
+                            type="button"
+                            onClick={() => setShowModal(false)}
+                            className="flex-1 py-2 border border-gray-200 rounded-lg bg-white text-sm text-gray-600 cursor-pointer hover:bg-gray-50 transition"
+                        >
+                            Annuler
+                        </button>
+                        <button
+                            type="submit"
+                            className=" cursor-pointer flex-1 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-sm font-medium transition"
+                        >
+                            {editingUser ? 'Modifier' : 'Créer'}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+
+            {/* ── Modal Reset Password ───────────────────────────────────────────── */}
+            <Modal
+                open={showPasswordModal && !!selectedUser}
+                onClose={() => setShowPasswordModal(false)}
+                title="Réinitialiser mot de passe"
+            >
+                {selectedUser && (
+                    <form onSubmit={handleResetPassword} className="flex flex-col gap-3.5">
+                        <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm text-gray-600">
+                            Pour : <strong className="text-gray-900">{selectedUser.name}</strong>
+                        </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Nouveau mot de passe</label>
+                            <label className={labelCls}>Nouveau mot de passe</label>
                             <input
-                                type="password"
-                                name="password"
-                                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#006233]"
                                 required
+                                type="password"
                                 minLength={8}
+                                className={inputCls}
+                                value={pwForm.password}
+                                onChange={e => setPwForm({ ...pwForm, password: e.target.value })}
                             />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Confirmation</label>
+                            <label className={labelCls}>Confirmation</label>
                             <input
-                                type="password"
-                                name="confirmation"
-                                className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-[#006233]"
                                 required
+                                type="password"
+                                className={inputCls}
+                                value={pwForm.confirmation}
+                                onChange={e => setPwForm({ ...pwForm, confirmation: e.target.value })}
                             />
                         </div>
-                        <div className="flex gap-3 pt-4">
-                            <button 
-                                type="button" 
-                                onClick={() => setShowPasswordModal(false)} 
-                                className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                        <div className="flex gap-2.5 mt-1">
+                            <button
+                                type="button"
+                                onClick={() => setShowPasswordModal(false)}
+                                className="flex-1 py-2 border border-gray-200 rounded-lg bg-white text-sm text-gray-600 cursor-pointer hover:bg-gray-50 transition"
                             >
                                 Annuler
                             </button>
-                            <button 
-                                type="submit" 
+                            <button
+                                type="submit"
                                 disabled={saving}
-                                className="flex-1 px-4 py-2 bg-[#006233] text-white rounded-lg hover:bg-[#004d26] disabled:opacity-50"
+                                className="flex-1 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-60 text-white rounded-lg text-sm font-medium cursor-pointer transition"
                             >
-                                {saving ? 'Chargement...' : 'Confirmer'}
+                                {saving ? 'Chargement…' : 'Confirmer'}
                             </button>
                         </div>
                     </form>
-                </div>
-            </div>
-        )}
-    </div>
-  );
+                )}
+            </Modal>
+
+            <ActionConfirmModal
+                isOpen={actionModal.isOpen}
+                onClose={closeActionModal}
+                onConfirm={actionModal.onConfirmAction}
+                title={actionModal.title}
+                message={actionModal.message}
+                type={actionModal.type}
+                confirmText={actionModal.confirmText}
+                icon={actionModal.icon}
+                darkMode={false}
+            />
+        </div>
+    );
 }

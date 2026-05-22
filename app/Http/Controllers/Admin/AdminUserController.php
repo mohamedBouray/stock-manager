@@ -12,7 +12,6 @@ use Illuminate\Support\Facades\Log;
 
 class AdminUserController extends Controller
 {
-    // Vérifier si l'utilisateur est admin
     private function checkAdmin()
     {
         $user = auth()->user();
@@ -22,7 +21,6 @@ class AdminUserController extends Controller
         return true;
     }
 
-    // Liste des utilisateurs
     public function index(Request $request)
     {
         try {
@@ -56,7 +54,6 @@ class AdminUserController extends Controller
         }
     }
     
-    // Détails d'un utilisateur
     public function show($id)
     {
         try {
@@ -128,20 +125,31 @@ class AdminUserController extends Controller
     
     // Bloquer un utilisateur
     public function block($id)
-    {
-        try {
-            $this->checkAdmin();
-            
-            $user = User::findOrFail($id);
-            $user->block();
-            $user->recordActivity('user_blocked', "Bloqué par " . auth()->user()->name);
-            
-            return response()->json(['message' => 'Utilisateur bloqué']);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Erreur: ' . $e->getMessage()], 500);
+{
+    try {
+        $this->checkAdmin();
+        
+        $user = User::findOrFail($id);
+        
+        if ($user->id === auth()->id()) {
+            return response()->json([
+                'message' => 'Vous ne pouvez pas bloquer votre propre compte'
+            ], 422);
         }
+        
+        $user->block();
+        $user->recordActivity('user_blocked', "Bloqué par " . auth()->user()->name);
+        
+        $user->tokens()->delete();
+        
+        return response()->json([
+            'message' => 'Utilisateur bloqué avec succès',
+            'user' => $user
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['message' => 'Erreur: ' . $e->getMessage()], 500);
     }
-    
+}
     // Débloquer un utilisateur
     public function unblock($id)
     {
@@ -246,10 +254,24 @@ class AdminUserController extends Controller
         try {
             $this->checkAdmin();
             
+            $totalUsers = User::count();
+            $activeUsers = User::where('is_blocked', false)->count();
+            $blockedUsers = User::where('is_blocked', true)->count();
+            
+            $activePercentage = $totalUsers > 0 ? round(($activeUsers / $totalUsers) * 100) : 0;
+            $blockedPercentage = $totalUsers > 0 ? round(($blockedUsers / $totalUsers) * 100) : 0;
+            
+            $newUsersThisMonth = User::whereMonth('created_at', now()->month)
+                ->whereYear('created_at', now()->year)
+                ->count();
+            
             $stats = [
-                'total_users' => User::count(),
-                'active_users' => User::where('is_blocked', false)->count(),
-                'blocked_users' => User::where('is_blocked', true)->count(),
+                'total_users' => $totalUsers,
+                'active_users' => $activeUsers,
+                'blocked_users' => $blockedUsers,
+                'active_percentage' => $activePercentage,       
+                'blocked_percentage' => $blockedPercentage,      
+                'new_users_this_month' => $newUsersThisMonth,   
                 'admins' => User::where('role', 'admin')->count(),
                 'magasiniers' => User::where('role', 'magasinier')->count(),
                 'demandeurs' => User::where('role', 'user')->count(),
@@ -273,10 +295,12 @@ class AdminUserController extends Controller
         } catch (\Exception $e) {
             Log::error('Error in systemStats: ' . $e->getMessage());
             return response()->json([
-                'message' => 'Erreur: ' . $e->getMessage(),
                 'total_users' => 0,
                 'active_users' => 0,
                 'blocked_users' => 0,
+                'active_percentage' => 0,
+                'blocked_percentage' => 0,
+                'new_users_this_month' => 0,
                 'admins' => 0,
                 'magasiniers' => 0,
                 'demandeurs' => 0,

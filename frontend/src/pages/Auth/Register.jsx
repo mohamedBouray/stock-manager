@@ -11,7 +11,6 @@ function Register({ hasUsers }) {
         password_confirmation: "",
         role: "user",
     });
-    // CCC
     const [errors, setErrors] = useState({});
     const [successMessage, setSuccessMessage] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -22,7 +21,6 @@ function Register({ hasUsers }) {
 
     useEffect(() => {
         const selectedRole = localStorage.getItem('selected_role');
-        console.log("Rôle sélectionné:", selectedRole);
         
         if (selectedRole === 'magasinier') {
             setFormData(prev => ({ ...prev, role: 'magasinier' }));
@@ -57,8 +55,6 @@ function Register({ hasUsers }) {
         } else {
             dataToSend = formData;
         }
-        
-        console.log("Données envoyées au backend:", dataToSend);
         
         try {
             const response = await api.post("/api/register", dataToSend);

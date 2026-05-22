@@ -15,26 +15,53 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(Request $request): JsonResponse{
+    public function store(Request $request): JsonResponse
+    {
         $request->validate([
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
         ]);
 
         $user = User::where('email', $request->email)->first();
-        if (! $user || ! Hash::check($request->password, $user->password)) {
+        
+        if (!$user) {
             return response()->json([
-                'message' => 'Invalid email or password'
+                'message' => 'Email ou mot de passe incorrect'
             ], 422);
         }
+        
+        if (!Hash::check($request->password, $user->password)) {
+            $user->incrementLoginAttempts();
+            return response()->json([
+                'message' => 'Email ou mot de passe incorrect'
+            ], 422);
+        }
+        
+        if ($user->is_blocked) {
+            return response()->json([
+                'message' => '⛔ Votre compte a été bloqué par l\'administrateur. Veuillez contacter le support.'
+            ], 403); 
+        }
 
+        if ($user->isLocked()) {
+            $remaining = $user->getRemainingLockoutTime();
+            return response()->json([
+                'message' => "⏰ Compte verrouillé. Réessayez dans {$remaining} minutes."
+            ], 423); 
+        }
+
+
+        $user->updateLastLogin();
+        
         $token = $user->createToken('auth_token')->plainTextToken;
+        
         return response()->json([
             'user' => $user,
             'token' => $token,
             'message' => 'Connexion réussie'
         ]);
     }
+    
 
     /**
      * Destroy an authenticated session (Logout).

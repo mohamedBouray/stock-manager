@@ -11,7 +11,6 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // 🚀 2. Bdel hna rjja3ha "Schema::create" f blasst Route::create
         Schema::create('email_verification_codes', function (Blueprint $table) {
             $table->id();
             $table->string('email')->index();

@@ -23,7 +23,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'is_blocked', 'status', 'theme', 'language',
         'last_login_at', 'last_login_ip', 'login_attempts', 'locked_until',
         'password_changed_at', 'force_password_change',
-        'two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at'
+        'two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at',
+        'bio', 'job_title'
     ];
 
     protected $hidden = [
@@ -46,44 +47,6 @@ class User extends Authenticatable implements MustVerifyEmail
     public function activities()
     {
         return $this->hasMany(UserActivity::class)->orderBy('created_at', 'desc');
-    }
-
-    public function roles()
-    {
-        return $this->belongsToMany(Role::class, 'user_roles')->withTimestamps();
-    }
-
-    public function permissions()
-    {
-        return $this->hasManyThrough(Permission::class, Role::class, 'user_roles');
-    }
-
-    // ========== Role Helpers ==========
-    public function assignRole($role)
-    {
-        if (is_string($role)) {
-            $role = Role::where('name', $role)->firstOrFail();
-        }
-        return $this->roles()->syncWithoutDetaching([$role->id]);
-    }
-
-    public function removeRole($role)
-    {
-        if (is_string($role)) {
-            $role = Role::where('name', $role)->firstOrFail();
-        }
-        return $this->roles()->detach($role->id);
-    }
-
-
-    public function hasPermission($permission)
-    {
-        foreach ($this->roles as $role) {
-            if ($role->hasPermission($permission)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     // ========== Status Helpers ==========

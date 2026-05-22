@@ -1,6 +1,6 @@
-
+// src/lib/apis/axios.js
 import axios from "axios";
-// CCC
+
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || "http://localhost:8000",
     withCredentials: true,
@@ -54,6 +54,10 @@ api.interceptors.request.use(
     }
 );
 
+const triggerBlockedEvent = (email) => {
+    window.dispatchEvent(new CustomEvent('user-blocked', { detail: { email } }));
+};
+
 api.interceptors.response.use(
     (response) => {
         updateLoading(-1);
@@ -65,24 +69,37 @@ api.interceptors.response.use(
         const { status, data } = error.response || {};
         const currentPath = window.location.pathname;
 
-        console.log(" API Error - Status:", status);
-        console.log(" Current path:", currentPath);
-        console.log(" Error data:", data);
+
+        if (status === 403 && data?.message?.includes('bloqué')) {
+        
+            let email = '';
+            const userString = localStorage.getItem('user');
+            if (userString) {
+                try {
+                    const user = JSON.parse(userString);
+                    email = user.email || '';
+                } catch(e) {}
+            }
+            
+            // Nettoyer localStorage
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            
+            triggerBlockedEvent(email);
+            
+            return Promise.reject(error);
+        }
 
         if (status === 401) {
             const publicRoutes = [
-                "/login",
-                "/register",
-                "/choose-role",
-                "/forgot-password",
-                "/password-reset",
-                "/verify-email",
-                "/verify-notice"
+                "/login", "/register", "/choose-role",
+                "/forgot-password", "/password-reset",
+                "/verify-email", "/verify-notice"
             ];
             
             const isPublicRoute = publicRoutes.some(route => currentPath.includes(route));
             
-            if (!isPublicRoute) {
+            if (!isPublicRoute && !currentPath.includes("/login")) {
                 console.log("🚪 Token invalide - Redirection vers login");
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
@@ -90,15 +107,15 @@ api.interceptors.response.use(
             }
         }
 
-        if (status === 403) {
+        if (status === 403 && !currentPath.includes("/login")) {
             console.log("Accès interdit - Redirection");
-            if (!currentPath.includes("/login")) {
-                window.location.href = "/login";
-            }
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = "/login?forbidden=true";
         }
 
         if (status === 404) {
-            console.error(" API Endpoint not found:", error.config?.url);
+            console.error("API Endpoint not found:", error.config?.url);
         }
 
         if (status === 422) {
@@ -106,11 +123,11 @@ api.interceptors.response.use(
         }
 
         if (status === 500) {
-            console.error(" Server Error:", data?.message || "Internal Server Error");
+            console.error("Server Error:", data?.message || "Internal Server Error");
         }
 
         if (error.code === "ERR_NETWORK") {
-            console.error(" Network Error - Vérifiez votre connexion");
+            console.error("Network Error - Vérifiez votre connexion");
         }
 
         return Promise.reject(error);

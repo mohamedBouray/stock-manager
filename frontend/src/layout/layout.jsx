@@ -2,25 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import Sidebar from '../lib/components/Sidebar';
 import Header from '../lib/components/Header';
-// CCC
+
 export default function Layout() {
     const [currentRole, setCurrentRole] = useState('user');
     const [collapsed, setCollapsed] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [isLoggingOut, setIsLoggingOut] = useState(false); 
     const location = useLocation();
     const navigate = useNavigate();
 
     useEffect(() => {
-        const userString = localStorage.getItem('user');
-        console.log("=== LAYOUT DEBUG ===");
-        console.log("userString:", userString);
-        
+        const userString = localStorage.getItem('user');        
         if (userString) {
             try {
                 const user = JSON.parse(userString);
-                console.log("User role from DB:", user.role);
                 setCurrentRole(user.role);
-                console.log("Role envoyé à Sidebar:", user.role);
             } catch (e) {
                 console.error("Erreur:", e);
                 setCurrentRole('user');
@@ -32,6 +28,12 @@ export default function Layout() {
         setLoading(false); 
     }, []);
 
+   const handleLogout = () => {
+    // Vider localStorage
+    localStorage.clear();
+    // Rediriger directement sans utiliser navigate
+    window.location.href = '/login';
+};
     const PAGE_TITLES = {
         '/admin/dashboard': { title: 'Dashboard Admin', breadcrumb: ['Accueil'] },
         '/magasinier/dashboard': { title: 'Dashboard Magasinier', breadcrumb: ['Accueil'] },
@@ -45,6 +47,8 @@ export default function Layout() {
         '/achats': { title: 'Achats & Commandes', breadcrumb: ['Direction & Achats'] },
         '/rapports': { title: 'Éditions & Rapports', breadcrumb: ['Direction & Achats'] },
         '/admin/administration': { title: 'Administration', breadcrumb: ['Direction & Achats'] },
+        '/profil': { title: 'Mon Profil', breadcrumb: ['Mon Compte'] }, 
+        '/change-password': { title: 'Changer mot de passe', breadcrumb: ['Mon Compte'] }, 
     };
     
     const current = PAGE_TITLES[location.pathname] || { title: 'Tableau de bord', breadcrumb: [] };
@@ -70,10 +74,24 @@ export default function Layout() {
         <>
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css" />
             <div className="flex h-screen overflow-hidden font-sans">
-                <Sidebar currentRole={currentRole} activeItem={activeItem} onNavigate={handleNavigate} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)}/>
+                <Sidebar 
+                    currentRole={currentRole} 
+                    activeItem={activeItem} 
+                    onNavigate={handleNavigate} 
+                    collapsed={collapsed} 
+                    onToggle={() => setCollapsed(c => !c)}
+                />
                 <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
-                    <Header currentRole={currentRole} pageTitle={current.title} breadcrumb={current.breadcrumb} onToggleSidebar={() => setCollapsed(c => !c)}/>
-                    <main className="flex-1 overflow-y-auto p-6">
+                    <Header 
+                        currentRole={currentRole} 
+                        pageTitle={current.title} 
+                        breadcrumb={current.breadcrumb} 
+                        onToggleSidebar={() => setCollapsed(c => !c)}
+                        onNavigate={handleNavigate}  
+                        onLogout={handleLogout}      
+                        isLoggingOut={isLoggingOut}   
+                    />
+                    <main className="flex-1 overflow-y-auto p-3">
                         <Outlet />
                     </main>
                 </div>
