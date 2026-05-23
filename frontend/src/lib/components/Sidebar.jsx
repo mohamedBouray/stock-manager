@@ -33,6 +33,7 @@ const MENU_SECTIONS = {
             icon: 'layout-dashboard',
             items: [
                 { label: 'Dashboard', icon: 'home', path: '/admin/dashboard' },
+                { label: 'Affectation Magasins', icon: 'building-community', path: '/admin/affectation-magasins' },
             ],
         },
         {
@@ -40,8 +41,13 @@ const MENU_SECTIONS = {
             title: 'Gestion Magasin',
             icon: 'building-warehouse',
             items: [
-                { label: 'Fiches Articles', icon: 'package', path: '/articles' },
-                { label: 'Suivi & Alertes', icon: 'bell-ringing', path: '/alertes' },
+                { label: 'Fiches Articles', icon: 'package', path: '/admin/articles' },
+                { label: 'Stocks par Magasin', icon: 'boxes', path: '/admin/stocks' },
+                { label: 'Entrée/Sortie', icon: 'arrows-transfer-up-down', path: '/admin/entree-sortie' },
+                { label: 'Inventaire', icon: 'scan', path: '/admin/inventaire' },
+                { label: 'Alertes Stock', icon: 'bell-ringing', path: '/admin/alertes' },
+                { label: 'Transfert Articles', icon: 'transfer', path: '/admin/transferts' },
+                { label: 'Retours Magasin', icon: 'return', path: '/admin/retours' },
             ],
         },
         {
@@ -49,80 +55,100 @@ const MENU_SECTIONS = {
             title: 'Direction & Achats',
             icon: 'chart-bar',
             items: [
-                { label: 'Achats & Commandes', icon: 'shopping-cart', path: '/achats' },
-                { label: 'Éditions & Rapports', icon: 'report-analytics', path: '/rapports' },
-                { label: 'Administration', icon: 'settings', path: '/admin/administration' },
+                { label: 'Commandes Fournisseurs', icon: 'shopping-cart', path: '/admin/commandes' },
+                { label: 'Traiter Réceptions', icon: 'clipboard-list', path: '/admin/traiter-commandes' },
+                { label: 'Rapports & Éditions', icon: 'report-analytics', path: '/admin/rapports' },
+                { label: 'Export/Import', icon: 'file-import', path: '/admin/export' },
+            ],
+        },
+        {
+            id: 'administration',
+            title: 'Administration',
+            icon: 'settings',
+            items: [
+                { label: 'Utilisateurs', icon: 'users', path: '/admin/utilisateurs' },
+                { label: 'Paramètres', icon: 'settings', path: '/admin/parametres' },
+                { label: 'Mon Profil', icon: 'user', path: '/admin/Mon Profil' },
             ],
         },
     ],
     
     magasinier: [
-    {
-        id: 'dashboard',
-        title: 'Tableau de bord',
-        icon: 'layout-dashboard',
-        items: [
-            { label: 'Dashboard', icon: 'home', path: '/magasinier/dashboard' },
-        ],
-    },
-    {
-        id: 'demandes',
-        title: 'Gestion Demandes',
-        icon: 'clipboard-list',
-        items: [
-            { label: 'Demandes reçues', icon: 'file-description', path: '/magasinier/demandes' },
-            { label: 'Réservations', icon: 'calendar-event', path: '/magasinier/reservations' },
-        ],
-    },
-    {
-        id: 'magasin',
-        title: 'Gestion Magasin',
-        icon: 'building-warehouse',
-        items: [
-            { label: 'Fiches Articles', icon: 'package', path: '/articles' },
-            { label: 'Mouvements de Stock', icon: 'arrows-transfer-up-down', path: '/magasinier/mouvements' },
-            { label: 'Inventaire Physique', icon: 'scan', path: '/inventaire' },
-            { label: 'Suivi & Alertes', icon: 'bell-ringing', path: '/alertes' },
-        ],
-    },
-    {
-        id: 'parametres',
-        title: 'Paramètres',
-        icon: 'settings',
-        items: [
-            { label: 'Mon Profil', icon: 'user', path: '/magasinier/parametres' },
-        ],
-    },
-],
+        {
+            id: 'dashboard',
+            title: 'Tableau de bord',
+            icon: 'layout-dashboard',
+            items: [
+                { label: 'Dashboard', icon: 'home', path: '/magasinier/dashboard' },
+            ],
+        },
+        {
+            id: 'demandes',
+            title: 'Gestion Demandes',
+            icon: 'clipboard-list',
+            items: [
+                { label: 'Demandes reçues', icon: 'file-description', path: '/magasinier/demandes' },
+                { label: 'Réservations', icon: 'calendar-event', path: '/magasinier/reservations' },
+                { label: 'Retours', icon: 'return', path: '/magasinier/retours' },
+            ],
+        },
+        {
+            id: 'stock',
+            title: 'Gestion Stock',
+            icon: 'building-warehouse',
+            items: [
+                { label: 'Consultation Stock', icon: 'package', path: '/magasinier/stocks' },
+                { label: 'Mouvements', icon: 'arrows-transfer-up-down', path: '/magasinier/mouvements' },
+                { label: 'Inventaire', icon: 'clipboard-list', path: '/magasinier/inventaire' },
+                { label: 'Alertes', icon: 'bell-ringing', path: '/magasinier/alertes' },
+            ],
+        },
+        {
+            id: 'commandes',
+            title: 'Commandes',
+            icon: 'shopping-cart',
+            items: [
+                { label: 'Bons de Réception', icon: 'file-invoice', path: '/magasinier/bons-reception' },
+            ],
+        },
+        {
+            id: 'parametres',
+            title: 'Paramètres',
+            icon: 'settings',
+            items: [
+                { label: 'Mon Profil', icon: 'user', path: '/magasinier/profil' },
+            ],
+        },
+    ],
     
     user: [
-    {
-        id: 'dashboard',
-        title: 'Tableau de bord',
-        icon: 'layout-dashboard',
-        items: [
-            { label: 'Dashboard', icon: 'home', path: '/user/dashboard' },
-        ],
-    },
-    {
-        id: 'service',
-        title: 'Espace Service',
-        icon: 'clipboard-list',
-        items: [
-            { label: 'Mes Demandes', icon: 'file-description', path: '/demandes' },  // ⬅️ AJOUTER
-            { label: 'Réservations', icon: 'calendar-event', path: '/reservations' }, // ⬅️ AJOUTER
-            { label: 'Consultation Stock', icon: 'package', path: '/consultation-stock' }, // ⬅️ AJOUTER
-        ],
-    },
-    {
-        id: 'parametres',
-        title: 'Paramètres',
-        icon: 'settings',
-        items: [
-            { label: 'Mon Profil', icon: 'user', path: '/user/parametres' },
-        ],
-    },
-],
+        {
+            id: 'dashboard',
+            title: 'Tableau de bord',
+            icon: 'layout-dashboard',
+            items: [
+                { label: 'Dashboard', icon: 'home', path: '/user/dashboard' },
+            ],
+        },
+        {
+            id: 'service',
+            title: 'Espace Service',
+            icon: 'clipboard-list',
+            items: [
+                { label: 'Mes Demandes', icon: 'file-description', path: '/user/demandes' },
+                { label: 'Réservations', icon: 'calendar-event', path: '/user/reservations' },
+                { label: 'Consultation Stock', icon: 'package', path: '/user/consultation-stock' },
+            ],
+        },
+        {
+            id: 'parametres',
+            title: 'Paramètres',
+            icon: 'settings',
+            items: [
+                { label: 'Mon Profil', icon: 'user', path: '/user/profil' },
+            ],
+        },
+    ],
 };
 
 function TI({ name, size = 18, color, className = '' }) {
@@ -186,7 +212,7 @@ export default function Sidebar({ currentRole, activeItem, onNavigate, collapsed
                                     key={item.path}
                                     onClick={() => onNavigate(item.path)}
                                     title={collapsed ? item.label : undefined}
-                                    className={`w-full flex items-center rounded-lg mb-1 transition-all duration-150 outline-none
+                                    className={`w-full flex items-center rounded-lg mb-1 transition-all duration-150 outline-none cursor-pointer
                                         ${collapsed ? 'justify-center gap-0 py-2 px-0' : 'justify-start gap-2 py-2 px-2.5'}
                                         ${isActive ? 'text-[#0D1B2A]' : 'text-[#607080]'}`}
                                     style={{
@@ -205,7 +231,7 @@ export default function Sidebar({ currentRole, activeItem, onNavigate, collapsed
                 ))}
             </nav>
 
-            {/* Footer sans Logout */}
+            {/* Footer with user info */}
             <div className={`border-t border-black/10 bg-gray-50 ${collapsed ? 'px-2 py-3' : 'px-3 py-4'}`}>
                 {!collapsed && (
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white border border-black/10">

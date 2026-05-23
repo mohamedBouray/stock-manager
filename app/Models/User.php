@@ -8,8 +8,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Support\Facades\Hash;
-use App\Models\Admin\Permission;
-use App\Models\Admin\Role;
+use App\Models\Admin\Magasins;
 use App\Models\Admin\UserActivity;
 
 class User extends Authenticatable implements MustVerifyEmail
@@ -24,7 +23,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'last_login_at', 'last_login_ip', 'login_attempts', 'locked_until',
         'password_changed_at', 'force_password_change',
         'two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at',
-        'bio', 'job_title'
+        'bio', 'job_title','magasin_id' 
     ];
 
     protected $hidden = [
@@ -213,4 +212,14 @@ class User extends Authenticatable implements MustVerifyEmail
         ];
         return $badges[$this->role] ?? '<span class="badge badge-secondary">Inconnu</span>';
     }
+    public function magasin()
+{
+    return $this->belongsTo(Magasins::class);
+}
+
+// AJOUTER CETTE MÉTHODE
+public function isMagasinierOf($magasinId)
+{
+    return $this->role === 'admin' || $this->magasin_id == $magasinId;
+}
 }

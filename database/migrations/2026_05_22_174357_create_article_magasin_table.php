@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('article_id')->constrained('articles')->onDelete('cascade');
             $table->foreignId('magasins_id')->constrained('magasins')->onDelete('cascade'); // تأكد أنها magasin_id وليس magasins_id
             $table->timestamps();
+            $table->unique(['article_id', 'magasins_id']);
         });
     }
 

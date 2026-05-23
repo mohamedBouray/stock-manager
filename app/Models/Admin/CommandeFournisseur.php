@@ -3,7 +3,6 @@
 namespace App\Models\Admin;
 
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Admin\BonReception;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CommandeFournisseur extends Model

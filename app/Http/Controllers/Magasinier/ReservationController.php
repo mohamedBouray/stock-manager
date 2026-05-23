@@ -4,20 +4,18 @@ namespace App\Http\Controllers\Magasinier;
 
 use App\Http\Controllers\Controller;
 use App\Models\Admin\Reservation;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class ReservationController extends Controller
 {
-    /**
-     * Liste de toutes les réservations
-     */
+    // Liste de toutes les réservations
     public function index(Request $request)
     {
         try {
             $query = Reservation::with(['user', 'article']);
             
-            // Filtrer par statut
             if ($request->statut && in_array($request->statut, ['en_attente', 'confirmee', 'annulee', 'expiree'])) {
                 $query->where('statut', $request->statut);
             }
@@ -36,9 +34,7 @@ class ReservationController extends Controller
         }
     }
     
-    /**
-     * Confirmer une réservation
-     */
+    // Confirmer une réservation
     public function confirmer($id)
     {
         try {
@@ -55,6 +51,14 @@ class ReservationController extends Controller
                 'statut' => 'confirmee'
             ]);
             
+            Notification::create([
+                'user_id' => $reservation->user_id,
+                'type' => 'reservation_confirmee',
+                'title' => 'Réservation confirmée',
+                'message' => 'Votre réservation pour ' . $reservation->article->designation . ' a été confirmée du ' . $reservation->date_debut . ' au ' . $reservation->date_fin,
+                'data' => ['reservation_id' => $reservation->id, 'statut' => 'confirmee']
+            ]);
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Réservation confirmée avec succès'
@@ -67,9 +71,7 @@ class ReservationController extends Controller
         }
     }
     
-    /**
-     * Annuler une réservation
-     */
+    // Annuler une réservation
     public function annuler($id)
     {
         try {
@@ -86,6 +88,15 @@ class ReservationController extends Controller
                 'statut' => 'annulee'
             ]);
             
+
+            Notification::create([
+                'user_id' => $reservation->user_id,
+                'type' => 'reservation_annulee',
+                'title' => ' Réservation annulée',
+                'message' => 'Votre réservation pour ' . $reservation->article->designation . ' a été annulée par le magasinier.',
+                'data' => ['reservation_id' => $reservation->id, 'statut' => 'annulee']
+            ]);
+            
             return response()->json([
                 'success' => true,
                 'message' => 'Réservation annulée avec succès'
@@ -98,9 +109,7 @@ class ReservationController extends Controller
         }
     }
     
-    /**
-     * Voir une réservation spécifique
-     */
+    // Voir une réservation spécifique
     public function show($id)
     {
         try {

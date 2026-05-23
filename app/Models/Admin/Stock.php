@@ -5,23 +5,24 @@ use Illuminate\Database\Eloquent\Model;
 
 class Stock extends Model
 {
+    protected $table = 'stocks';
+    
     protected $fillable = [
         'article_id',
-        'magasin_id',
+        'magasin_id',        // ← SINGULIER
         'quantite_disponible',
         'quantite_reservee',
         'emplacement_code'
     ];
 
-    // علاقة مع المادة
     public function article()
     {
         return $this->belongsTo(Article::class);
     }
 
-    // علاقة مع المخزن
+    // 🔥 CORRECTION ICI - CHANGER 'magasins_id' → 'magasin_id'
     public function magasin()
     {
-        return $this->belongsTo(Magasins::class);
+        return $this->belongsTo(Magasins::class, 'magasin_id');
     }
 }

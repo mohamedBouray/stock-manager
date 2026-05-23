@@ -15,55 +15,71 @@ class MouvementController extends Controller
      * Liste des mouvements de stock
      */
     public function index(Request $request)
-    {
-        try {
-            $query = Mouvement::with(['article', 'user', 'magasin']);
-            
-            // Filtrer par article
-            if ($request->article_id) {
-                $query->where('article_id', $request->article_id);
+        {
+            try {
+                $query = Mouvement::with(['article', 'user', 'magasin']);
+                
+                // 🔥 AJOUTER LE FILTRE PAR MAGASIN DU MAGASINIER
+                if (auth()->user()->magasin_id) {
+                    $query->where('magasin_id', auth()->user()->magasin_id);
+                }
+                
+                // Filtrer par article
+                if ($request->article_id) {
+                    $query->where('article_id', $request->article_id);
+                }
+                
+                // Filtrer par type
+                if ($request->type && in_array($request->type, ['entree', 'sortie', 'ajustement'])) {
+                    $query->where('type', $request->type);
+                }
+                
+                // Filtrer par magasin (optionnel, si admin veut filtrer)
+                if ($request->magasin_id && !auth()->user()->magasin_id) {
+                    $query->where('magasin_id', $request->magasin_id);
+                }
+                
+                $mouvements = $query->orderBy('created_at', 'desc')->paginate(50);
+                
+                return response()->json([
+                    'success' => true,
+                    'data' => $mouvements
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 500);
             }
-            
-            // Filtrer par type
-            if ($request->type && in_array($request->type, ['entree', 'sortie', 'ajustement'])) {
-                $query->where('type', $request->type);
-            }
-            
-            // Filtrer par magasin
-            if ($request->magasin_id) {
-                $query->where('magasin_id', $request->magasin_id);
-            }
-            
-            $mouvements = $query->orderBy('created_at', 'desc')->paginate(50);
-            
-            return response()->json([
-                'success' => true,
-                'data' => $mouvements
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 500);
         }
-    }
-    
-    /**
-     * Statistiques des mouvements
-     */
-    public function stats()
-    {
-        try {
-            $stats = [
-                'total_entrees' => Mouvement::where('type', 'entree')->sum('quantite'),
-                'total_sorties' => Mouvement::where('type', 'sortie')->sum('quantite'),
-                'total_ajustements' => Mouvement::where('type', 'ajustement')->sum('quantite'),
-                'mouvements_jour' => Mouvement::whereDate('created_at', today())->count(),
-                'derniers_mouvements' => Mouvement::with(['article', 'user'])
-                    ->orderBy('created_at', 'desc')
-                    ->limit(10)
-                    ->get()
-                    ->map(function($m) {
+        
+        /**
+         * Statistiques des mouvements
+         */
+        public function stats()
+        {
+            try {
+                // 🔥 AJOUTER LE FILTRE PAR MAGASIN DU MAGASINIER
+                $queryEntrees = Mouvement::where('type', 'entree');
+                $querySorties = Mouvement::where('type', 'sortie');
+                $queryAjustements = Mouvement::where('type', 'ajustement');
+                $queryMouvementsJour = Mouvement::whereDate('created_at', today());
+                $queryDerniers = Mouvement::with(['article', 'user'])->orderBy('created_at', 'desc');
+                
+                if (auth()->user()->magasin_id) {
+                    $queryEntrees->where('magasin_id', auth()->user()->magasin_id);
+                    $querySorties->where('magasin_id', auth()->user()->magasin_id);
+                    $queryAjustements->where('magasin_id', auth()->user()->magasin_id);
+                    $queryMouvementsJour->where('magasin_id', auth()->user()->magasin_id);
+                    $queryDerniers->where('magasin_id', auth()->user()->magasin_id);
+                }
+                
+                $stats = [
+                    'total_entrees' => $queryEntrees->sum('quantite'),
+                    'total_sorties' => $querySorties->sum('quantite'),
+                    'total_ajustements' => $queryAjustements->sum('quantite'),
+                    'mouvements_jour' => $queryMouvementsJour->count(),
+                    'derniers_mouvements' => $queryDerniers->limit(10)->get()->map(function($m) {
                         return [
                             'id' => $m->id,
                             'type' => $m->type,
@@ -73,19 +89,19 @@ class MouvementController extends Controller
                             'created_at' => $m->created_at
                         ];
                     })
-            ];
-            
-            return response()->json([
-                'success' => true,
-                'data' => $stats
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 500);
+                ];
+                
+                return response()->json([
+                    'success' => true,
+                    'data' => $stats
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 500);
+            }
         }
-    }
     
     /**
      * Enregistrer une entrée de stock

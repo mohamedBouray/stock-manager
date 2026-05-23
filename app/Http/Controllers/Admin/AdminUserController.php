@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Admin\UserActivity;
+use App\Models\Admin\Magasins;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -107,9 +108,12 @@ class AdminUserController extends Controller
                 'email' => 'sometimes|email|unique:users,email,' . $id,
                 'role' => 'sometimes|in:admin,magasinier,user',
                 'is_blocked' => 'sometimes|boolean',
+                'magasin_id' => 'sometimes|nullable|exists:magasins,id' 
             ]);
             
-            $user->update($request->only(['name', 'email', 'role', 'is_blocked']));
+            // 🔥 CORRECTION: Fusionner les deux en une seule ligne
+            $updateData = $request->only(['name', 'email', 'role', 'is_blocked', 'magasin_id']);
+            $user->update($updateData);
             
             if ($request->has('is_blocked')) {
                 $action = $request->is_blocked ? 'blocked' : 'unblocked';
@@ -117,6 +121,7 @@ class AdminUserController extends Controller
             }
             
             return response()->json($user);
+            
         } catch (\Exception $e) {
             Log::error('Error in update: ' . $e->getMessage());
             return response()->json(['message' => 'Erreur: ' . $e->getMessage()], 500);
@@ -309,4 +314,66 @@ class AdminUserController extends Controller
             ], 200);
         }
     }
+public function updateMagasin(Request $request, $id)
+{
+    try {
+        $this->checkAdmin();
+        
+        $request->validate([
+            'magasin_id' => 'nullable|exists:magasins,id'
+        ]);
+        
+        $user = User::findOrFail($id);
+        
+        // Vérifier que l'utilisateur est un magasinier
+        if ($user->role !== 'magasinier') {
+            return response()->json([
+                'message' => 'Seul un magasinier peut être assigné à un magasin'
+            ], 422);
+        }
+        
+        $user->update([
+            'magasin_id' => $request->magasin_id
+        ]);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Magasin assigné avec succès',
+            'user' => $user->fresh('magasin')
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur: ' . $e->getMessage()
+        ], 500);
+    }
+}
+
+/**
+ * Récupérer les magasiniers avec leurs magasins
+ */
+public function getMagasiniersWithMagasin()
+{
+    try {
+        $this->checkAdmin();
+        
+        $magasiniers = User::with('magasin')
+            ->where('role', 'magasinier')
+            ->get();
+        
+        $magasins = Magasins::all();
+        
+        return response()->json([
+            'magasiniers' => $magasiniers,
+            'magasins' => $magasins
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Erreur: ' . $e->getMessage()
+        ], 500);
+    }
+}
 }

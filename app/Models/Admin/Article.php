@@ -43,6 +43,18 @@ class Article extends Model
         return $this->hasMany(Reservation::class);
     }
     
+    // 🔥 AJOUTER CETTE RELATION - Many-to-Many avec Magasins
+    public function magasins()
+    {
+        return $this->belongsToMany(Magasins::class, 'article_magasin', 'article_id', 'magasins_id');
+    }
+    
+    // Relation avec Stock (un article peut avoir plusieurs stocks dans différents magasins)
+    public function stocks()
+    {
+        return $this->hasMany(Stock::class);
+    }
+    
     // Vérifier si l'article est disponible
     public function estDisponible($quantite)
     {

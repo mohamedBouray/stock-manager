@@ -84,17 +84,4 @@ class ReservationController extends Controller
             'message' => 'Réservation annulée avec succès'
         ]);
     }
-    public function historique()
-{
-    $reservations = Reservation::with(['article'])
-        ->where('user_id', Auth::id())
-        ->whereIn('statut', ['expiree', 'annulee'])
-        ->orderBy('created_at', 'desc')
-        ->paginate(20);
-    
-    return response()->json([
-        'success' => true,
-        'data' => $reservations
-    ]);
-}
 }

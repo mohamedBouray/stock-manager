@@ -1,49 +1,102 @@
-// src/App.jsx
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+
 import api from './lib/apis/axios';
 import { attachLoadingHandler } from './lib/apis/axios';
+
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoadingProvider, useLoading } from './context/LoadingContext';
 
-// Auth Components
+// ==================== AUTH COMPONENTS ====================
 import Login from './pages/Auth/Login';
 import ChooseRole from './pages/Auth/ChooseRole';
 import Register from './pages/Auth/Register';
 import VerifyEmail from './pages/Auth/Verify-email';
-import ForgotPassword from './pages/Auth/ForgotPassword'; 
+import ForgotPassword from './pages/Auth/ForgotPassword';
 import ResetPassword from './pages/Auth/ResetPassword';
 
-// Layout
+// ==================== LAYOUT & COMMON ====================
 import Layout from './layout/Layout';
 import Profile from './lib/components/Profile';
 
-// Admin Components
+// ==================== ADMIN COMPONENTS ====================
+// Dashboard 
 import AdminDashboard from './pages/Admin/Dashboard';
+import AffectationMagasins from './pages/Admin/AffectationMagasins';
+// Gestion Magasin
+import AjouterArticle from './pages/Admin/AjouterArticle';
+import Stocks from './pages/Admin/Stocks';
+import EntreeSortie from './pages/Admin/EntreeSortie';
+import Inventaire from './pages/Admin/inventaire';
+import AlertesStock from './pages/Admin/Alertes';
+import Transferts from './pages/Admin/Transferts';
+import Retours from './pages/Admin/Retours';
+
+// Direction & Achats
+import CommandesMinistere from './pages/Admin/Demande';
+import TraiterCommandes from './pages/Admin/TraiterCommandes';
+import Rapports from './pages/Admin/Rapports';
+import ExportImport from './pages/Admin/ExportImport';
+
+// Administration
 import Administration from './pages/Admin/Administration';
+import SettingsPanel from './pages/Admin/SettingsPanel';
+import MonProfil from '../src/lib/components/Profile';
 
-// Magasinier Components
+
+
+
+
+
+
+
+
+// ==================== MAGASINIER COMPONENTS ====================
+// Dashboard
 import MagasinierDashboard from './pages/Magasinier/Dashboard';
+
+// Gestion Demandes
+import GestionDemandes from './pages/Magasinier/GestionDemandes';
+import GestionReservations from './pages/Magasinier/GestionReservations';
+import MagasinierRetours from './pages/Magasinier/Retours';
+
+// Gestion Stock
+import MagasinierStocks from './pages/Magasinier/Stocks';
+import MouvementsStock from './pages/Magasinier/MouvementsStock';
+import MagasinierInventaire from './pages/Magasinier/Inventaire';
+import MagasinierAlertes from './pages/Magasinier/Alertes';
+
+// Commandes
+import BonsReception from './pages/Magasinier/BonsReception';
+
+// Paramètres
 import MagasinierParametres from './pages/Magasinier/Parametres';
-// User Components
+
+
+
+
+// ==================== DEMANDEUR (USER) COMPONENTS ====================
+// Dashboard
 import UserDashboard from './pages/User/Dashboard';
-import UserParametres from './pages/User/Parametres';
 
-
+// Espace Service
 import Demandes from './pages/User/Demandes';
 import Reservations from './pages/User/Reservations';
 import ConsultationStock from './pages/User/ConsultationStock';
-import GestionDemandes from './pages/Magasinier/GestionDemandes';
-import GestionReservations from './pages/Magasinier/GestionReservations';
-import MouvementsStock from './pages/Magasinier/MouvementsStock';
 
-// Dashboard paths
+// Paramètres
+import UserParametres from './pages/User/Parametres';
+
+
+
+// ==================== CONSTANTES ====================
 const DASHBOARDS = {
     admin: "/admin/dashboard",
     magasinier: "/magasinier/dashboard",
     user: "/user/dashboard"
 };
 
+// ==================== HELPER FUNCTIONS ====================
 const getUser = () => {
     const userString = localStorage.getItem('user');
     if (userString) {
@@ -60,28 +113,25 @@ const getToken = () => {
     return localStorage.getItem('token');
 };
 
+// ==================== PROTECTED ROUTE COMPONENT ====================
 const ProtectedRoute = ({ allowedRoles }) => {
     const token = getToken();
     const user = getUser();
     const currentPath = window.location.pathname;
 
-    // Routes publiques
-    const publicRoutes = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
+    const publicRoutes = ['/login', '/register', '/choose-role', '/forgot-password', '/reset-password', '/verify-email'];
     if (publicRoutes.includes(currentPath)) {
         return <Outlet />;
     }
 
-    // Si pas authentifié
     if (!token || !user) {
         return <Navigate to="/login" replace />;
     }
     
-    // Vérification email
     if (user.role !== 'admin' && !user.email_verified_at && currentPath !== '/verify-email') {
         return <Navigate to="/verify-email" replace />;
     }
 
-    // Vérification rôle
     if (allowedRoles && !allowedRoles.includes(user.role)) {
         const dashboard = DASHBOARDS[user.role] || "/";
         return <Navigate to={dashboard} replace />;
@@ -90,6 +140,7 @@ const ProtectedRoute = ({ allowedRoles }) => {
     return <Outlet />;
 };
 
+// ==================== VERIFY ROUTE COMPONENT ====================
 const VerifyRoute = () => {
     const user = getUser();
     
@@ -100,6 +151,7 @@ const VerifyRoute = () => {
     return <VerifyEmail />;
 };
 
+// ==================== APP CONTENT ====================
 function AppContent() {
     const { setLoading } = useLoading();
     const [hasUsers, setHasUsers] = useState(null);
@@ -113,7 +165,6 @@ function AppContent() {
     useEffect(() => {
         attachLoadingHandler(setLoading);
         
-        // Vérifier l'authentification
         const checkAuth = () => {
             const token = localStorage.getItem('token');
             const userString = localStorage.getItem('user');
@@ -126,8 +177,6 @@ function AppContent() {
         };
         
         checkAuth();
-        
-        // Écouter les changements de localStorage
         window.addEventListener('storage', checkAuth);
         return () => window.removeEventListener('storage', checkAuth);
     }, [setLoading]);
@@ -158,16 +207,13 @@ function AppContent() {
     return (
         <Router>
             <Routes>
-                {/* Root */}
+                {/* ==================== ROOT ==================== */}
                 <Route path="/" element={
-                    authState.isAuthenticated && authState.user 
-                        ? <Navigate to={DASHBOARDS[authState.user.role]} replace />
-                        : hasUsers 
+                    authState.isAuthenticated && authState.user ? <Navigate to={DASHBOARDS[authState.user.role]} replace /> : hasUsers 
                             ? <Navigate to="/login" replace />
-                            : <Navigate to="/register" replace />
-                } />
+                            : <Navigate to="/register" replace />} />
                 
-                {/* Auth Routes */}
+                {/* ==================== AUTH ROUTES ==================== */}
                 <Route path="/login" element={
                     authState.isAuthenticated 
                         ? <Navigate to={DASHBOARDS[authState.user?.role]} replace />
@@ -191,47 +237,91 @@ function AppContent() {
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/password-reset/:token" element={<ResetPassword />} />
                 <Route path="/verify-email" element={<VerifyRoute />} />
-                
-                {/* Super Admin Routes */}
+
+
+
+                {/* ==================== ADMIN ROUTES ==================== */}
                 <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                     <Route element={<Layout />}>
+                        {/* Dashboard */}
                         <Route path="/admin/dashboard" element={<AdminDashboard />} />
-                        <Route path="/admin/administration" element={<Administration />} />
-                        <Route path="/profile" element={<Profile />} /> 
+                        <Route path="/admin/affectation-magasins" element={<AffectationMagasins />} />
+                        {/* Gestion Magasin */}
+                        <Route path="/admin/articles" element={<AjouterArticle />} />
+                        <Route path="/admin/stocks" element={<Stocks />} />
+                        <Route path="/admin/entree-sortie" element={<EntreeSortie />} />
+                        <Route path="/admin/inventaire" element={<Inventaire />} />
+                        <Route path="/admin/alertes" element={<AlertesStock />} />
+                        <Route path="/admin/transferts" element={<Transferts />} />
+                        <Route path="/admin/retours" element={<Retours />} />
+                        
+                        {/* Direction & Achats */}
+                        <Route path="/admin/commandes" element={<CommandesMinistere />} />
+                        <Route path="/admin/traiter-commandes" element={<TraiterCommandes />} />
+                        <Route path="/admin/rapports" element={<Rapports />} />
+                        <Route path="/admin/export" element={<ExportImport />} />
+                        
+                        {/* Administration */}
+                        <Route path="/admin/utilisateurs" element={<Administration />} />
+                        <Route path="/admin/parametres" element={<SettingsPanel />} />
+                        <Route path="/admin/Mon Profil" element={<MonProfil />} />
                     </Route>
                 </Route>
                 
-                {/* Magasinier Routes */}
+
+
+
+
+                {/* ==================== MAGASINIER ROUTES ==================== */}
                 <Route element={<ProtectedRoute allowedRoles={['magasinier']} />}>
                     <Route element={<Layout />}>
+                        {/* Dashboard */}
                         <Route path="/magasinier/dashboard" element={<MagasinierDashboard />} />
-                        <Route path="/magasinier/parametres" element={<MagasinierParametres />} />
-                        {/* ⬇️ AJOUTER CETTE ROUTE ⬇️ */}
+                        
+                        {/* Gestion Demandes */}
                         <Route path="/magasinier/demandes" element={<GestionDemandes />} />
                         <Route path="/magasinier/reservations" element={<GestionReservations />} />
+                        <Route path="/magasinier/retours" element={<MagasinierRetours />} />
+                        
+                        {/* Gestion Stock */}
+                        <Route path="/magasinier/stocks" element={<MagasinierStocks />} />
                         <Route path="/magasinier/mouvements" element={<MouvementsStock />} />
+                        <Route path="/magasinier/inventaire" element={<MagasinierInventaire />} />
+                        <Route path="/magasinier/alertes" element={<MagasinierAlertes />} />
+                        
+                        {/* Commandes */}
+                        <Route path="/magasinier/bons-reception" element={<BonsReception />} />
+                        
+                        {/* Paramètres */}
+                        <Route path="/magasinier/profil" element={<Profile />} />
+                        <Route path="/magasinier/parametres" element={<MagasinierParametres />} />
                     </Route>
                 </Route>
                 
-                {/* User Routes */}
+                {/* ==================== DEMANDEUR (USER) ROUTES ==================== */}
                 <Route element={<ProtectedRoute allowedRoles={['user']} />}>
                     <Route element={<Layout />}>
+                        {/* Dashboard */}
                         <Route path="/user/dashboard" element={<UserDashboard />} />
-                        <Route path="/user/parametres" element={<UserParametres />} />
-                        {/* ⬇️ AJOUTER CES ROUTES ⬇️ */}
-                        <Route path="/demandes" element={<Demandes />} />
-                        <Route path="/reservations" element={<Reservations />} />
-                        <Route path="/consultation-stock" element={<ConsultationStock />} />
+                        
+                        {/* Espace Service */}
+                        <Route path="/user/demandes" element={<Demandes />} />
+                        <Route path="/user/reservations" element={<Reservations />} />
+                        <Route path="/user/consultation-stock" element={<ConsultationStock />} />
+                        
+                        {/* Paramètres */}
+                        <Route path="/user/profil" element={<Profile />} />
                     </Route>
                 </Route>
                 
-                {/* Catch all */}
+                {/* ==================== CATCH ALL ==================== */}
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </Router>
     );
 }
 
+// ==================== APP ====================
 export default function App() {
     return (
         <AuthProvider>

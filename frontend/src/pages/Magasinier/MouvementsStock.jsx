@@ -1,14 +1,19 @@
 // src/pages/Magasinier/MouvementsStock.jsx
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, TrendingUp, TrendingDown, Settings, Eye, X, Download } from 'lucide-react';
+import { Plus, Search, TrendingUp, TrendingDown, Settings, Eye, X, Download, Scan, CheckCircle, AlertCircle } from 'lucide-react';
 import api from '../../lib/apis/axios';
 
 export default function MouvementsStock() {
+    // État pour les mouvements
     const [mouvements, setMouvements] = useState([]);
     const [articles, setArticles] = useState([]);
     const [magasins, setMagasins] = useState([]);
     const [stats, setStats] = useState({});
     const [loading, setLoading] = useState(true);
+    const [filter, setFilter] = useState('all');
+    const [search, setSearch] = useState('');
+
+    // État pour le modal
     const [showModal, setShowModal] = useState(false);
     const [modalType, setModalType] = useState('entree');
     const [formData, setFormData] = useState({
@@ -19,8 +24,13 @@ export default function MouvementsStock() {
         reference: '',
         nouvelle_quantite: ''
     });
-    const [filter, setFilter] = useState('all');
-    const [search, setSearch] = useState('');
+
+    // État pour le scan rapide
+    const [scanMode, setScanMode] = useState(false);
+    const [scanCode, setScanCode] = useState('');
+    const [scannedArticle, setScannedArticle] = useState(null);
+    const [scanResult, setScanResult] = useState(null);
+    const [scanLoading, setScanLoading] = useState(false);
 
     useEffect(() => {
         fetchMouvements();
@@ -29,76 +39,113 @@ export default function MouvementsStock() {
         fetchStats();
     }, [filter]);
 
-const fetchArticles = async () => {
-    try {
-        const response = await api.get('/api/user/stock/articles');
-        let articlesData = [];
-        if (response.data?.data?.data) {
-            articlesData = response.data.data.data;
-        } else if (response.data?.data && Array.isArray(response.data.data)) {
-            articlesData = response.data.data;
-        } else if (Array.isArray(response.data)) {
-            articlesData = response.data;
+    const fetchArticles = async () => {
+        try {
+            const response = await api.get('/api/user/stock/articles');
+            let articlesData = [];
+            if (response.data?.data?.data) articlesData = response.data.data.data;
+            else if (response.data?.data && Array.isArray(response.data.data)) articlesData = response.data.data;
+            else if (Array.isArray(response.data)) articlesData = response.data;
+            setArticles(articlesData);
+        } catch (error) {
+            console.error(error);
+            setArticles([]);
         }
-        setArticles(articlesData);
-    } catch (error) {
-        console.error(error);
-        setArticles([]);
-    }
-};
+    };
 
-const fetchMagasins = async () => {
-    try {
-        const response = await api.get('/api/magasinier/magasins');
-        let magasinsData = [];
-        if (response.data?.data) {
-            magasinsData = Array.isArray(response.data.data) ? response.data.data : [];
-        } else if (Array.isArray(response.data)) {
-            magasinsData = response.data;
+    const fetchMagasins = async () => {
+        try {
+            const response = await api.get('/api/magasinier/magasins');
+            let magasinsData = [];
+            if (response.data?.data) magasinsData = Array.isArray(response.data.data) ? response.data.data : [];
+            else if (Array.isArray(response.data)) magasinsData = response.data;
+            setMagasins(magasinsData);
+        } catch (error) {
+            console.error(error);
+            setMagasins([]);
         }
-        setMagasins(magasinsData);
-    } catch (error) {
-        console.error(error);
-        setMagasins([]);
-    }
-};
+    };
 
-const fetchMouvements = async () => {
-    try {
-        const params = filter !== 'all' ? { type: filter } : {};
-        const response = await api.get('/api/magasinier/mouvements', { params });
-        let mouvementsData = [];
-        if (response.data?.data?.data) {
-            mouvementsData = response.data.data.data;
-        } else if (response.data?.data && Array.isArray(response.data.data)) {
-            mouvementsData = response.data.data;
-        } else if (Array.isArray(response.data)) {
-            mouvementsData = response.data;
+    const fetchMouvements = async () => {
+        try {
+            const params = filter !== 'all' ? { type: filter } : {};
+            const response = await api.get('/api/magasinier/mouvements', { params });
+            let mouvementsData = [];
+            if (response.data?.data?.data) mouvementsData = response.data.data.data;
+            else if (response.data?.data && Array.isArray(response.data.data)) mouvementsData = response.data.data;
+            else if (Array.isArray(response.data)) mouvementsData = response.data;
+            setMouvements(mouvementsData);
+        } catch (error) {
+            console.error(error);
+            setMouvements([]);
+        } finally {
+            setLoading(false);
         }
-        setMouvements(mouvementsData);
-    } catch (error) {
-        console.error(error);
-        setMouvements([]);
-    } finally {
-        setLoading(false);
-    }
-};
+    };
 
-const fetchStats = async () => {
-    try {
-        const response = await api.get('/api/magasinier/mouvements/stats');
-        let statsData = {};
-        if (response.data?.data) {
-            statsData = response.data.data;
-        } else {
-            statsData = response.data;
+    const fetchStats = async () => {
+        try {
+            const response = await api.get('/api/magasinier/mouvements/stats');
+            let statsData = {};
+            if (response.data?.data) statsData = response.data.data;
+            else statsData = response.data;
+            setStats(statsData);
+        } catch (error) {
+            console.error(error);
+            setStats({});
         }
-        setStats(statsData);
-    } catch (error) {
-        console.error(error);
-        setStats({});
-    }
-};
+    };
+
+    // Scanner un article
+    const handleScan = async () => {
+        if (!scanCode) return;
+        setScanLoading(true);
+        setScanResult(null);
+        try {
+           const response = await api.post('/api/magasinier/scan', { code_barre: scanCode });
+            setScannedArticle(response.data.article);
+            setScanResult({ success: true, message: `✅ Article trouvé : ${response.data.article.designation}` });
+        } catch (error) {
+            setScannedArticle(null);
+            setScanResult({ success: false, message: error.response?.data?.message || '❌ Article non trouvé' });
+        } finally {
+            setScanLoading(false);
+        }
+    };
+
+    // Valider le mouvement depuis le scan
+    const handleScanSubmit = async () => {
+        if (!scannedArticle) return;
+        if (!formData.magasin_id) {
+            alert('Veuillez sélectionner un magasin');
+            return;
+        }
+        
+        setScanLoading(true);
+        try {
+            const endpoint = modalType === 'entree' 
+                ? '/api/magasinier/mouvements/entree' 
+                : '/api/magasinier/mouvements/sortie';
+            
+            await api.post(endpoint, {
+                article_id: scannedArticle.id,
+                magasin_id: formData.magasin_id,
+                quantite: formData.quantite || 1,
+                motif: formData.motif || `${modalType === 'entree' ? 'Entrée' : 'Sortie'} via scan`
+            });
+            
+            setScanResult({ success: true, message: `✅ ${modalType === 'entree' ? 'Entrée' : 'Sortie'} enregistrée avec succès` });
+            setScanCode('');
+            setScannedArticle(null);
+            setFormData({ ...formData, quantite: '', motif: '', magasin_id: '' });
+            fetchMouvements();
+            fetchStats();
+        } catch (error) {
+            setScanResult({ success: false, message: error.response?.data?.message || '❌ Erreur' });
+        } finally {
+            setScanLoading(false);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -107,7 +154,7 @@ const fetchStats = async () => {
             let data = {};
             
             if (modalType === 'entree') {
-                endpoint = '/api/magasinier/mouvements/entree';
+                endpoint = '/api/magasinier/scan/entree-rapide';
                 data = {
                     article_id: formData.article_id,
                     magasin_id: formData.magasin_id,
@@ -116,7 +163,7 @@ const fetchStats = async () => {
                     reference: formData.reference
                 };
             } else if (modalType === 'sortie') {
-                endpoint = '/api/magasinier/mouvements/sortie';
+                endpoint = '/api/magasinier/scan/sortie-rapide';
                 data = {
                     article_id: formData.article_id,
                     magasin_id: formData.magasin_id,
@@ -139,10 +186,10 @@ const fetchStats = async () => {
             setFormData({ article_id: '', magasin_id: '', quantite: '', motif: '', reference: '', nouvelle_quantite: '' });
             fetchMouvements();
             fetchStats();
-            alert('Mouvement enregistré avec succès');
+            alert('✅ Mouvement enregistré avec succès');
         } catch (error) {
             console.error(error);
-            alert(error.response?.data?.message || 'Erreur');
+            alert(error.response?.data?.message || '❌ Erreur');
         }
     };
 
@@ -160,6 +207,42 @@ const fetchStats = async () => {
         return <span className={`px-2 py-1 text-xs rounded-full ${config[type]}`}>{labels[type]}</span>;
     };
 
+    const openModal = (type) => {
+        setModalType(type);
+        setScanMode(false);
+        setScanCode('');
+        setScannedArticle(null);
+        setScanResult(null);
+        setFormData({
+            article_id: '',
+            magasin_id: magasins[0]?.id || '',
+            quantite: '',
+            motif: '',
+            reference: '',
+            nouvelle_quantite: ''
+        });
+        setShowModal(true);
+    };
+
+    const openScanMode = (type) => {
+        setModalType(type);
+        setScanMode(true);
+        setScanCode('');
+        setScannedArticle(null);
+        setScanResult(null);
+        setFormData({
+            ...formData,
+            magasin_id: magasins[0]?.id || '',
+            quantite: 1,
+            motif: ''
+        });
+        setShowModal(true);
+    };
+
+    const filteredMouvements = mouvements.filter(m => 
+        search === '' || m.article?.designation?.toLowerCase().includes(search.toLowerCase())
+    );
+
     if (loading) {
         return (
             <div className="flex justify-center items-center h-64">
@@ -174,23 +257,35 @@ const fetchStats = async () => {
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-800">📊 Mouvements de stock</h1>
-                    <p className="text-sm text-gray-500 mt-1">Gérez les entrées et sorties d'articles</p>
+                    <p className="text-sm text-gray-500 mt-1">Gérez les entrées et sorties d'articles (avec ou sans scan)</p>
                 </div>
                 <div className="flex gap-2">
                     <button 
-                        onClick={() => { setModalType('entree'); setShowModal(true); }} 
+                        onClick={() => openScanMode('entree')} 
+                        className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+                    >
+                        <Scan size={16} /> Scan Entrée
+                    </button>
+                    <button 
+                        onClick={() => openScanMode('sortie')} 
+                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+                    >
+                        <Scan size={16} /> Scan Sortie
+                    </button>
+                    <button 
+                        onClick={() => openModal('entree')} 
                         className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
                     >
                         <TrendingUp size={16} /> Entrée
                     </button>
                     <button 
-                        onClick={() => { setModalType('sortie'); setShowModal(true); }} 
+                        onClick={() => openModal('sortie')} 
                         className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
                     >
                         <TrendingDown size={16} /> Sortie
                     </button>
                     <button 
-                        onClick={() => { setModalType('ajustement'); setShowModal(true); }} 
+                        onClick={() => openModal('ajustement')} 
                         className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
                     >
                         <Settings size={16} /> Ajustement
@@ -256,14 +351,14 @@ const fetchStats = async () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {mouvements.length === 0 ? (
+                            {filteredMouvements.length === 0 ? (
                                 <tr>
                                     <td colSpan="8" className="px-6 py-12 text-center text-gray-500">
                                         Aucun mouvement trouvé
                                     </td>
                                 </tr>
                             ) : (
-                                mouvements.map((m) => (
+                                filteredMouvements.map((m) => (
                                     <tr key={m.id} className="hover:bg-gray-50">
                                         <td className="px-6 py-4 font-medium">{m.article?.designation}</td>
                                         <td className="px-6 py-4">{getTypeBadge(m.type)}</td>
@@ -281,134 +376,213 @@ const fetchStats = async () => {
                 </div>
             </div>
 
-            {/* Derniers mouvements */}
-            {stats.derniers_mouvements?.length > 0 && (
-                <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                    <h3 className="font-semibold text-gray-800 mb-3">🔄 Derniers mouvements</h3>
-                    <div className="space-y-2">
-                        {stats.derniers_mouvements.map((m) => (
-                            <div key={m.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
-                                <div className="flex items-center gap-3">
-                                    {getTypeBadge(m.type)}
-                                    <span className="font-medium">{m.article?.designation}</span>
-                                    <span className={m.type === 'entree' ? 'text-green-600 font-bold' : 'text-red-600 font-bold'}>
-                                        {m.type === 'entree' ? '+' : '-'}{m.quantite}
-                                    </span>
-                                </div>
-                                <div className="text-sm text-gray-400">
-                                    {new Date(m.created_at).toLocaleString()} - {m.user?.name}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* Modal */}
+            {/* Modal unifié */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl w-full max-w-md p-6">
+                    <div className="bg-white rounded-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-semibold">
+                            <h2 className="text-lg font-semibold flex items-center gap-2">
+                                {scanMode && <Scan size={18} className="text-blue-500" />}
                                 {modalType === 'entree' && '📥 Nouvelle entrée'}
                                 {modalType === 'sortie' && '📤 Nouvelle sortie'}
                                 {modalType === 'ajustement' && '⚙️ Ajustement de stock'}
+                                {scanMode && ' (Mode scan)'}
                             </h2>
                             <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
                                 <X size={20} />
                             </button>
                         </div>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Article</label>
-                                <select 
-                                    className="w-full p-2 border rounded-lg" 
-                                    value={formData.article_id} 
-                                    onChange={(e) => setFormData({ ...formData, article_id: e.target.value })} 
-                                    required
-                                >
-                                    <option value="">Sélectionner un article</option>
-                                    {articles.map(a => (
-                                        <option key={a.id} value={a.id}>
-                                            {a.designation} - Stock: {a.quantite_stock}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
 
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Magasin</label>
-                                <select 
-                                    className="w-full p-2 border rounded-lg" 
-                                    value={formData.magasin_id} 
-                                    onChange={(e) => setFormData({ ...formData, magasin_id: e.target.value })} 
-                                    required
-                                >
-                                    <option value="">Sélectionner un magasin</option>
-                                    {magasins.map(m => (
-                                        <option key={m.id} value={m.id}>{m.nom_magasin}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            
-                            {modalType !== 'ajustement' && (
+                        {/* Mode Scan */}
+                        {scanMode ? (
+                            <div className="space-y-4">
+                                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                    <p className="text-sm text-blue-700 flex items-center gap-2">
+                                        <Scan size={14} /> Scannez un code-barres
+                                    </p>
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Code-barres</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={scanCode}
+                                            onChange={(e) => setScanCode(e.target.value)}
+                                            onKeyPress={(e) => e.key === 'Enter' && handleScan()}
+                                            className="flex-1 px-3 py-2 border rounded-lg font-mono"
+                                            placeholder="Scannez ou saisissez le code"
+                                            autoFocus
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleScan}
+                                            disabled={scanLoading}
+                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                        >
+                                            Scanner
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {scannedArticle && (
+                                    <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                                        <p className="text-sm font-semibold text-green-800">✅ Article trouvé</p>
+                                        <p className="font-bold">{scannedArticle.designation}</p>
+                                        <p className="text-xs text-gray-500">Code: {scannedArticle.code_barre}</p>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Magasin</label>
+                                    <select
+                                        value={formData.magasin_id}
+                                        onChange={(e) => setFormData({ ...formData, magasin_id: e.target.value })}
+                                        className="w-full p-2 border rounded-lg"
+                                        required
+                                    >
+                                        <option value="">Sélectionner un magasin</option>
+                                        {magasins.map(m => (
+                                            <option key={m.id} value={m.id}>{m.nom_magasin}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Quantité</label>
-                                    <input 
-                                        type="number" 
-                                        min="1" 
-                                        className="w-full p-2 border rounded-lg" 
-                                        value={formData.quantite} 
-                                        onChange={(e) => setFormData({ ...formData, quantite: e.target.value })} 
-                                        required 
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={formData.quantite}
+                                        onChange={(e) => setFormData({ ...formData, quantite: e.target.value })}
+                                        className="w-full p-2 border rounded-lg"
+                                        required
                                     />
                                 </div>
-                            )}
-                            
-                            {modalType === 'ajustement' && (
+
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Nouvelle quantité</label>
-                                    <input 
-                                        type="number" 
-                                        min="0" 
-                                        className="w-full p-2 border rounded-lg" 
-                                        value={formData.nouvelle_quantite} 
-                                        onChange={(e) => setFormData({ ...formData, nouvelle_quantite: e.target.value })} 
-                                        required 
+                                    <label className="block text-sm font-medium mb-1">Motif (optionnel)</label>
+                                    <textarea
+                                        value={formData.motif}
+                                        onChange={(e) => setFormData({ ...formData, motif: e.target.value })}
+                                        className="w-full p-2 border rounded-lg"
+                                        rows="2"
+                                        placeholder="Raison du mouvement..."
                                     />
                                 </div>
-                            )}
-                            
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Motif</label>
-                                <textarea 
-                                    className="w-full p-2 border rounded-lg" 
-                                    rows="2" 
-                                    value={formData.motif} 
-                                    onChange={(e) => setFormData({ ...formData, motif: e.target.value })} 
-                                    required={modalType === 'ajustement'}
-                                    placeholder="Raison du mouvement..."
-                                />
+
+                                {scanResult && (
+                                    <div className={`p-3 rounded-lg ${scanResult.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+                                        {scanResult.message}
+                                    </div>
+                                )}
+
+                                <div className="flex gap-3 pt-2">
+                                    <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2 border rounded-lg">Annuler</button>
+                                    <button 
+                                        type="button" 
+                                        onClick={handleScanSubmit} 
+                                        disabled={scanLoading || !scannedArticle}
+                                        className="flex-1 py-2 bg-emerald-600 text-white rounded-lg disabled:opacity-50"
+                                    >
+                                        {scanLoading ? 'Traitement...' : 'Enregistrer'}
+                                    </button>
+                                </div>
                             </div>
-                            
-                            {modalType !== 'ajustement' && (
+                        ) : (
+                            /* Mode Formulaire normal */
+                            <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Référence (optionnel)</label>
-                                    <input 
-                                        type="text" 
+                                    <label className="block text-sm font-medium mb-1">Article</label>
+                                    <select 
                                         className="w-full p-2 border rounded-lg" 
-                                        value={formData.reference} 
-                                        onChange={(e) => setFormData({ ...formData, reference: e.target.value })} 
-                                        placeholder="N° commande, N° demande..."
+                                        value={formData.article_id} 
+                                        onChange={(e) => setFormData({ ...formData, article_id: e.target.value })} 
+                                        required
+                                    >
+                                        <option value="">Sélectionner un article</option>
+                                        {articles.map(a => (
+                                            <option key={a.id} value={a.id}>
+                                                {a.designation} - Stock: {a.quantite_stock}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Magasin</label>
+                                    <select 
+                                        className="w-full p-2 border rounded-lg" 
+                                        value={formData.magasin_id} 
+                                        onChange={(e) => setFormData({ ...formData, magasin_id: e.target.value })} 
+                                        required
+                                    >
+                                        <option value="">Sélectionner un magasin</option>
+                                        {magasins.map(m => (
+                                            <option key={m.id} value={m.id}>{m.nom_magasin}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                
+                                {modalType !== 'ajustement' && (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Quantité</label>
+                                        <input 
+                                            type="number" 
+                                            min="1" 
+                                            className="w-full p-2 border rounded-lg" 
+                                            value={formData.quantite} 
+                                            onChange={(e) => setFormData({ ...formData, quantite: e.target.value })} 
+                                            required 
+                                        />
+                                    </div>
+                                )}
+                                
+                                {modalType === 'ajustement' && (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Nouvelle quantité</label>
+                                        <input 
+                                            type="number" 
+                                            min="0" 
+                                            className="w-full p-2 border rounded-lg" 
+                                            value={formData.nouvelle_quantite} 
+                                            onChange={(e) => setFormData({ ...formData, nouvelle_quantite: e.target.value })} 
+                                            required 
+                                        />
+                                    </div>
+                                )}
+                                
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Motif</label>
+                                    <textarea 
+                                        className="w-full p-2 border rounded-lg" 
+                                        rows="2" 
+                                        value={formData.motif} 
+                                        onChange={(e) => setFormData({ ...formData, motif: e.target.value })} 
+                                        required={modalType === 'ajustement'}
+                                        placeholder="Raison du mouvement..."
                                     />
                                 </div>
-                            )}
-                            
-                            <div className="flex gap-3 pt-2">
-                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2 border rounded-lg">Annuler</button>
-                                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white rounded-lg">Enregistrer</button>
-                            </div>
-                        </form>
+                                
+                                {modalType !== 'ajustement' && (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Référence (optionnel)</label>
+                                        <input 
+                                            type="text" 
+                                            className="w-full p-2 border rounded-lg" 
+                                            value={formData.reference} 
+                                            onChange={(e) => setFormData({ ...formData, reference: e.target.value })} 
+                                            placeholder="N° commande, N° demande..."
+                                        />
+                                    </div>
+                                )}
+                                
+                                <div className="flex gap-3 pt-2">
+                                    <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2 border rounded-lg">Annuler</button>
+                                    <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white rounded-lg">Enregistrer</button>
+                                </div>
+                            </form>
+                        )}
                     </div>
                 </div>
             )}

@@ -98,12 +98,14 @@ public function getCommandesEnAttente()
             return response()->json(['message' => 'Erreur: ' . $e->getMessage()], 500);
         }
     }
-    public function traiterCommande(Request $request, $id)
+   public function traiterCommande(Request $request, $id)
 {
+    // 🔥 AJOUTER LA VALIDATION DU MAGASIN
     $request->validate([
         'lignes' => 'required|array',
         'lignes.*.id' => 'required|exists:lignes_commande,id',
         'lignes.*.nouvelle_quantite' => 'required|integer|min:0',
+        'magasin_id' => 'required|exists:magasins,id', // ← NOUVEAU
     ]);
 
     try {
@@ -113,8 +115,10 @@ public function getCommandesEnAttente()
         $toutesLignesLivrees = true;
         $auMoinsUneReception = false;
 
-        // 1. Créer le Bon de Réception f l-base de données
         $bonReception = null;
+        
+        // 🔥 UTILISER LE MAGASIN CHOISI
+        $magasinReceptionId = $request->magasin_id;
 
         foreach ($request->lignes as $ligneData) {
             $ligne = $commande->lignes->find($ligneData['id']);
@@ -123,22 +127,20 @@ public function getCommandesEnAttente()
             if ($ligne && $nouvelleQte > 0) {
                 if (!$bonReception) {
                     $bonReception = BonReception::create([
-                        'commande_fournisseur_id' => $commande->id,
+                        'commande_id' => $commande->id,
                         'numero_bon' => 'BR-' . time() . '-' . rand(1000, 9000),
                         'date_reception' => now()->toDateString(),
                     ]);
                     $auMoinsUneReception = true;
                 }
 
-                // Incrémenter la quantité livrée sur la ligne de commande
                 $ligne->increment('quantite_livree', $nouvelleQte);
                 $bonReception->lignes()->create([
                     'article_id' => $ligne->article_id,
                     'quantite_recue' => $nouvelleQte,
                 ]);
 
-                // Mettre à jour le stock
-                $magasinReceptionId = 1;
+                // 🔥 STOCK DANS LE MAGASIN CHOISI (plus 1 fixe)
                 $stock = Stock::firstOrCreate(
                     ['article_id' => $ligne->article_id, 'magasin_id' => $magasinReceptionId],
                     ['quantite_disponible' => 0, 'quantite_reservee' => 0]
@@ -147,7 +149,7 @@ public function getCommandesEnAttente()
             }
         }
 
-        // Rafraîchir pour vérifier le statut global de la commande
+        // Vérifier le statut de la commande
         foreach ($commande->lignes as $l) {
             if ($l->quantite_livree < $l->quantite_commandee) {
                 $toutesLignesLivrees = false;
@@ -171,7 +173,6 @@ public function getCommandesEnAttente()
         return response()->json(['message' => 'Erreur lors du traitement: ' . $e->getMessage()], 500);
     }
 }
-
     public function index(){
         $commandes = CommandeFournisseur::with([
             'lignes.article', 

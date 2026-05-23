@@ -14,23 +14,39 @@ class DemandeController extends Controller
 
     
     // Liste des demandes de l'utilisateur connecté
-    public function index(Request $request)
-    {
-        $query = Demande::with(['article.categorie', 'article.categorie.famille'])
-            ->where('user_id', Auth::id());
+   public function index()
+{
+    try {
+        $query = Demande::with(['article', 'retours' => function($q) {
+            $q->where('statut', 'approuve');
+        }])->where('user_id', Auth::id());
         
-        // Filtrer par statut
-        if ($request->statut && in_array($request->statut, ['en_attente', 'approuvee', 'refusee', 'livree'])) {
-            $query->where('statut', $request->statut);
+        if (request()->statut && in_array(request()->statut, ['en_attente', 'approuvee', 'refusee', 'livree'])) {
+            $query->where('statut', request()->statut);
         }
         
         $demandes = $query->orderBy('created_at', 'desc')->paginate(20);
+        
+        // Ajouter les quantités calculées
+        $demandes->getCollection()->transform(function($demande) {
+            $demande->quantite_recu = $demande->quantite_accorde ?? $demande->quantite_demandee;
+            $demande->quantite_retournee = $demande->retours->sum('quantite');
+            $demande->quantite_net = $demande->quantite_recu - $demande->quantite_retournee;
+            return $demande;
+        });
         
         return response()->json([
             'success' => true,
             'data' => $demandes
         ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
     }
+}
     
     // Créer une nouvelle demande
     public function store(Request $request)

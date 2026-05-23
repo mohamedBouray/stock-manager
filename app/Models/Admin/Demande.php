@@ -53,4 +53,24 @@ class Demande extends Model
     {
         return $this->statut === 'en_attente';
     }
+    public function retours()
+{
+    return $this->hasMany(RetourMagasin::class);
+}
+
+public function getQuantiteRetourneeAttribute()
+{
+    return $this->retours()->where('statut', 'approuve')->sum('quantite');
+}
+
+public function getQuantiteNetAttribute()
+{
+    $recu = $this->quantite_accorde ?? $this->quantite_demandee;
+    return $recu - $this->getQuantiteRetourneeAttribute();
+}
+
+public function getQuantiteRecuAttribute()
+{
+    return $this->quantite_accorde ?? $this->quantite_demandee;
+}
 }
