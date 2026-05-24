@@ -16,6 +16,9 @@ return new class extends Migration
             $table->string('fournisseur')->default('Ministère du Tourisme');
             $table->date('date_commande');
             $table->enum('statut', ['envoyee', 'partiellement_livree', 'livree_totalement'])->default('envoyee');
+            $table->boolean('is_archived')->default(false)->after('statut');
+            $table->timestamp('archived_at')->nullable()->after('is_archived');
+            $table->index('is_archived');
             $table->timestamps();
         });
     }

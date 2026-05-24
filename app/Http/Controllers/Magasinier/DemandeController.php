@@ -8,16 +8,18 @@ use App\Models\Admin\Article;
 use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Helpers\NotificationHelper;
+use App\Models\Admin\Mouvement; 
 
 class DemandeController extends Controller
 {
     // Liste des demandes (toutes)
-    public function index(Request $request)
+   // app/Http/Controllers/Magasinier/DemandeController.php
+public function index(Request $request)
 {
     try {
         $query = Demande::with(['user', 'article']);
         
-        // 🔥 SI LE MAGASINIER EST ASSIGNÉ À UN MAGASIN
         if (auth()->user()->magasin_id) {
             $query->whereHas('article', function($q) {
                 $q->whereHas('stocks', function($sq) {
@@ -32,6 +34,20 @@ class DemandeController extends Controller
         
         $demandes = $query->orderBy('created_at', 'desc')->get();
         
+        // 🔥 AJOUT : Pour chaque demande, ajouter le stock disponible dans le magasin du magasinier
+        $magasinId = auth()->user()->magasin_id;
+        
+        if ($magasinId) {
+            foreach ($demandes as $demande) {
+                $stock = \App\Models\Admin\Stock::where('article_id', $demande->article_id)
+                    ->where('magasin_id', $magasinId)
+                    ->first();
+                
+                // 🔥 IMPORTANT: Utiliser stock_magasin_actuel (même nom que l'accesseur)
+                $demande->stock_magasin_actuel = $stock ? $stock->quantite_disponible : 0;
+            }
+        }
+        
         return response()->json([
             'success' => true,
             'data' => $demandes
@@ -45,47 +61,117 @@ class DemandeController extends Controller
 }
     
     // Approuver une demande
-    public function approuver(Request $request, $id)
-    {
-        try {
-            $request->validate([
-                'quantite_accorde' => 'required|integer|min:1'
-            ]);
+  // Approuver une demande (CORRIGÉ)
+public function approuver(Request $request, $id)
+{
+    try {
+        $request->validate([
+            'quantite_accorde' => 'required|integer|min:1'
+        ]);
+        
+        $demande = Demande::findOrFail($id);
+        
+        if ($demande->statut !== 'en_attente') {
+            return response()->json([
+                'message' => 'Cette demande ne peut plus être modifiée'
+            ], 422);
+        }
+        
+        // VÉRIFICATION DU STOCK AVANT APPROBATION
+        if (auth()->user()->magasin_id) {
+            $stock = \App\Models\Admin\Stock::where('article_id', $demande->article_id)
+                ->where('magasin_id', auth()->user()->magasin_id)
+                ->first();
             
-            $demande = Demande::findOrFail($id);
-            
-            if ($demande->statut !== 'en_attente') {
+            if (!$stock) {
                 return response()->json([
-                    'message' => 'Cette demande ne peut plus être modifiée'
+                    'success' => false,
+                    'message' => '❌ Cet article n\'existe pas dans votre magasin.',
+                    'stock_disponible' => 0
                 ], 422);
             }
             
-            $demande->update([
-                'quantite_accorde' => $request->quantite_accorde,
-                'statut' => 'approuvee',
-                'date_traitement' => now(),
-                'traite_par' => Auth::id()
-            ]);
-            
-            Notification::create([
-                'user_id' => $demande->user_id,
-                'type' => 'demande_approuvee',
-                'title' => 'Demande approuvée',
-                'message' => 'Votre demande pour ' . $demande->article->designation . ' a été approuvée. Quantité accordée: ' . $request->quantite_accorde,
-                'data' => ['demande_id' => $demande->id, 'statut' => 'approuvee']
-            ]);
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Demande approuvée avec succès'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 500);
+            if ($stock->quantite_disponible < $request->quantite_accorde) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "❌ Stock insuffisant. Disponible: {$stock->quantite_disponible} {$demande->article->unite_mesure}",
+                    'stock_disponible' => $stock->quantite_disponible
+                ], 422);
+            }
         }
+        
+        // Mettre à jour la demande
+        $demande->update([
+            'quantite_accorde' => $request->quantite_accorde,
+            'statut' => 'approuvee',
+            'date_traitement' => now(),
+            'traite_par' => Auth::id()
+        ]);
+        
+        // 🔥 DIMINUER LE STOCK ET ENREGISTRER LE MOUVEMENT
+        if (auth()->user()->magasin_id) {
+            $stock = \App\Models\Admin\Stock::where('article_id', $demande->article_id)
+                ->where('magasin_id', auth()->user()->magasin_id)
+                ->first();
+                
+            if ($stock) {
+                // 🔥 Récupérer la quantité avant modification
+                $quantiteAvant = $stock->quantite_disponible;
+                $quantiteApres = $quantiteAvant - $request->quantite_accorde;
+                
+                // 🔥 ENREGISTRER LE MOUVEMENT DANS LA TABLE `mouvements`
+                Mouvement::create([
+                    'article_id' => $demande->article_id,
+                    'magasin_id' => auth()->user()->magasin_id,
+                    'type' => 'sortie',
+                    'quantite' => $request->quantite_accorde,
+                    'quantite_avant' => $quantiteAvant,
+                    'quantite_apres' => $quantiteApres,
+                    'motif' => "Demande approuvée #{$demande->id} - " . ($demande->motif ?? 'Sans motif'),
+                    'reference' => "DEM-{$demande->id}",
+                    'reference_type' => 'demande',
+                    'user_id' => Auth::id()
+                ]);
+                
+                // 🔥 Diminuer le stock du magasin
+                $stock->decrement('quantite_disponible', $request->quantite_accorde);
+                
+                // 🔥 Mettre à jour le stock global de l'article
+                $article = Article::find($demande->article_id);
+                $totalStock = \App\Models\Admin\Stock::where('article_id', $demande->article_id)->sum('quantite_disponible');
+                $article->quantite_stock = $totalStock;
+                $article->save();
+            }
+        }
+        
+        // Notifications
+        NotificationHelper::send(
+            $demande->user_id,
+            'demande_approuvee',
+            '✅ Demande approuvée',
+            "Votre demande pour {$demande->article->designation} a été approuvée. Quantité: {$request->quantite_accorde}",
+            ['demande_id' => $demande->id]
+        );
+        
+        NotificationHelper::sendToAdmins(
+            'demande_traitee',
+            '📋 Demande traitée',
+            "Une demande a été approuvée par " . Auth::user()->name,
+            ['demande_id' => $demande->id]
+        );
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Demande approuvée avec succès'
+        ]);
+        
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
     }
+}
     
     // Refuser une demande
     public function refuser(Request $request, $id)
@@ -111,13 +197,13 @@ class DemandeController extends Controller
             ]);
             
 
-            Notification::create([
-                'user_id' => $demande->user_id,
-                'type' => 'demande_refusee',
-                'title' => 'Demande refusée',
-                'message' => 'Votre demande pour ' . $demande->article->designation . ' a été refusée. Motif: ' . $request->commentaire,
-                'data' => ['demande_id' => $demande->id, 'statut' => 'refusee']
-            ]);
+            NotificationHelper::send(
+                $demande->user_id,
+                'demande_refusee',
+                'Demande refusée',
+                "Votre demande pour {$demande->article->designation} a été refusée. Motif: {$request->commentaire}",
+                ['demande_id' => $demande->id]
+            );
             
             return response()->json([
                 'success' => true,
@@ -153,13 +239,20 @@ class DemandeController extends Controller
                 'traite_par' => Auth::id()
             ]);
             
-            Notification::create([
-                'user_id' => $demande->user_id,
-                'type' => 'demande_livree',
-                'title' => 'Demande livrée',
-                'message' => 'Votre demande pour ' . $demande->article->designation . ' a été livrée. Vous pouvez télécharger le bon de livraison.',
-                'data' => ['demande_id' => $demande->id, 'statut' => 'livree']
-            ]);
+            NotificationHelper::send(
+                $demande->user_id,
+                'demande_livree',
+                'Demande livrée',
+                "Votre demande pour {$demande->article->designation} a été livrée",
+                ['demande_id' => $demande->id]
+            );
+
+            NotificationHelper::sendToAdmins(
+                'demande_livree',
+                'Demande livrée',
+                "Une demande a été livrée par " . Auth::user()->name,
+                ['demande_id' => $demande->id]
+            );
             
             return response()->json([
                 'success' => true,

@@ -1,4 +1,3 @@
-// src/pages/Admin/Inventaire.jsx
 import React, { useState, useEffect } from 'react';
 import { Package, Search, Plus, X, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import api from '../../lib/apis/axios';

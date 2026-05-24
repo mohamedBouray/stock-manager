@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use Exception;
+use App\Helpers\NotificationHelper;
 
 class CommandeController extends Controller
 {
@@ -98,81 +99,96 @@ public function getCommandesEnAttente()
             return response()->json(['message' => 'Erreur: ' . $e->getMessage()], 500);
         }
     }
-   public function traiterCommande(Request $request, $id)
-{
-    // 🔥 AJOUTER LA VALIDATION DU MAGASIN
-    $request->validate([
-        'lignes' => 'required|array',
-        'lignes.*.id' => 'required|exists:lignes_commande,id',
-        'lignes.*.nouvelle_quantite' => 'required|integer|min:0',
-        'magasin_id' => 'required|exists:magasins,id', // ← NOUVEAU
-    ]);
+    public function traiterCommande(Request $request, $id)
+    {
+        // 🔥 AJOUTER LA VALIDATION DU MAGASIN
+        $request->validate([
+            'lignes' => 'required|array',
+            'lignes.*.id' => 'required|exists:lignes_commande,id',
+            'lignes.*.nouvelle_quantite' => 'required|integer|min:0',
+            'magasin_id' => 'required|exists:magasins,id', // ← NOUVEAU
+        ]);
 
-    try {
-        DB::beginTransaction();
+        try {
+            DB::beginTransaction();
 
-        $commande = CommandeFournisseur::with('lignes')->findOrFail($id);
-        $toutesLignesLivrees = true;
-        $auMoinsUneReception = false;
+            $commande = CommandeFournisseur::with('lignes')->findOrFail($id);
+            $toutesLignesLivrees = true;
+            $auMoinsUneReception = false;
 
-        $bonReception = null;
-        
-        // 🔥 UTILISER LE MAGASIN CHOISI
-        $magasinReceptionId = $request->magasin_id;
+            $bonReception = null;
+            
+            // 🔥 UTILISER LE MAGASIN CHOISI
+            $magasinReceptionId = $request->magasin_id;
 
-        foreach ($request->lignes as $ligneData) {
-            $ligne = $commande->lignes->find($ligneData['id']);
-            $nouvelleQte = $ligneData['nouvelle_quantite'];
+            foreach ($request->lignes as $ligneData) {
+                $ligne = $commande->lignes->find($ligneData['id']);
+                $nouvelleQte = $ligneData['nouvelle_quantite'];
 
-            if ($ligne && $nouvelleQte > 0) {
-                if (!$bonReception) {
-                    $bonReception = BonReception::create([
-                        'commande_id' => $commande->id,
-                        'numero_bon' => 'BR-' . time() . '-' . rand(1000, 9000),
-                        'date_reception' => now()->toDateString(),
+                if ($ligne && $nouvelleQte > 0) {
+                    if (!$bonReception) {
+                        $bonReception = BonReception::create([
+                            'commande_id' => $commande->id,
+                            'numero_bon' => 'BR-' . time() . '-' . rand(1000, 9000),
+                            'date_reception' => now()->toDateString(),
+                        ]);
+                        $auMoinsUneReception = true;
+                    }
+
+                    $ligne->increment('quantite_livree', $nouvelleQte);
+                    $bonReception->lignes()->create([
+                        'article_id' => $ligne->article_id,
+                        'quantite_recue' => $nouvelleQte,
                     ]);
-                    $auMoinsUneReception = true;
+
+                    // 🔥 STOCK DANS LE MAGASIN CHOISI (plus 1 fixe)
+                    $stock = Stock::firstOrCreate(
+                        ['article_id' => $ligne->article_id, 'magasin_id' => $magasinReceptionId],
+                        ['quantite_disponible' => 0, 'quantite_reservee' => 0]
+                    );
+                    $stock->increment('quantite_disponible', $nouvelleQte);
                 }
-
-                $ligne->increment('quantite_livree', $nouvelleQte);
-                $bonReception->lignes()->create([
-                    'article_id' => $ligne->article_id,
-                    'quantite_recue' => $nouvelleQte,
-                ]);
-
-                // 🔥 STOCK DANS LE MAGASIN CHOISI (plus 1 fixe)
-                $stock = Stock::firstOrCreate(
-                    ['article_id' => $ligne->article_id, 'magasin_id' => $magasinReceptionId],
-                    ['quantite_disponible' => 0, 'quantite_reservee' => 0]
-                );
-                $stock->increment('quantite_disponible', $nouvelleQte);
             }
-        }
 
-        // Vérifier le statut de la commande
-        foreach ($commande->lignes as $l) {
-            if ($l->quantite_livree < $l->quantite_commandee) {
-                $toutesLignesLivrees = false;
+            // Vérifier le statut de la commande
+            foreach ($commande->lignes as $l) {
+                if ($l->quantite_livree < $l->quantite_commandee) {
+                    $toutesLignesLivrees = false;
+                }
             }
+
+            if ($toutesLignesLivrees) {
+                $commande->update(['statut' => 'livree_totalement']);
+            } elseif ($auMoinsUneReception || $commande->statut === 'partiellement_livree') {
+                $commande->update(['statut' => 'partiellement_livree']);
+            }
+
+            DB::commit();
+
+            NotificationHelper::sendToAdmins(
+                'commande_recue',
+                'Commande réceptionnée',
+                "La commande N°{$commande->numero_commande} a été réceptionnée",
+                ['commande_id' => $commande->id]
+            );
+            
+            NotificationHelper::sendToMagasiniers(
+                'commande_recue',
+                'Nouvelle réception',
+                "Des articles ont été ajoutés au stock",
+                ['commande_id' => $commande->id]
+            );
+
+            return response()->json([
+                'message' => 'Réception enregistrée avec succès !',
+                'bon_reception' => $bonReception ? $bonReception->load('lignes.article') : null
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Erreur lors du traitement: ' . $e->getMessage()], 500);
         }
-
-        if ($toutesLignesLivrees) {
-            $commande->update(['statut' => 'livree_totalement']);
-        } elseif ($auMoinsUneReception || $commande->statut === 'partiellement_livree') {
-            $commande->update(['statut' => 'partiellement_livree']);
-        }
-
-        DB::commit();
-        return response()->json([
-            'message' => 'Réception enregistrée avec succès !',
-            'bon_reception' => $bonReception ? $bonReception->load('lignes.article') : null
-        ], 200);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-        return response()->json(['message' => 'Erreur lors du traitement: ' . $e->getMessage()], 500);
     }
-}
     public function index(){
         $commandes = CommandeFournisseur::with([
             'lignes.article', 

@@ -11,7 +11,7 @@ use App\Models\Admin\Mouvement;
 use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-
+use App\Helpers\NotificationHelper;
 class RetourController extends Controller
 {
     // Liste des retours pour le magasinier
@@ -79,13 +79,20 @@ class RetourController extends Controller
                 'date_traitement' => now()
             ]);
             
-            Notification::create([
-                'user_id' => $retour->user_id,
-                'type' => 'retour_approuve',
-                'title' => 'Retour approuvé',
-                'message' => 'Votre demande de retour pour ' . $retour->article->designation . ' a été approuvée. ' . $retour->quantite . ' unité(s) ont été créditées.',
-                'data' => ['retour_id' => $retour->id, 'statut' => 'approuve']
-            ]);
+            NotificationHelper::send(
+                $retour->user_id,
+                'retour_approuve',
+                'Retour approuvé',
+                "Votre retour pour {$retour->article->designation} a été approuvé. {$retour->quantite} unité(s) créditées.",
+                ['retour_id' => $retour->id]
+            );
+
+            NotificationHelper::sendToAdmins(
+                'retour_traite',
+                'Retour approuvé',
+                "Un retour a été approuvé par " . Auth::user()->name,
+                ['retour_id' => $retour->id]
+            );
             
             return response()->json([
                 'success' => true,
@@ -100,7 +107,7 @@ class RetourController extends Controller
         }
     }
     
-    // ❌ Refuser un retour
+    // Refuser un retour
     public function refuser($id, Request $request)
     {
         try {
@@ -124,13 +131,13 @@ class RetourController extends Controller
             ]);
             
 
-            Notification::create([
-                'user_id' => $retour->user_id,
-                'type' => 'retour_refuse',
-                'title' => 'Retour refusé',
-                'message' => 'Votre demande de retour pour ' . $retour->article->designation . ' a été refusée. Motif: ' . $request->motif_refus,
-                'data' => ['retour_id' => $retour->id, 'statut' => 'refuse']
-            ]);
+            NotificationHelper::send(
+                $retour->user_id,
+                'retour_refuse',
+                'Retour refusé',
+                "Votre retour pour {$retour->article->designation} a été refusé. Motif: {$request->motif_refus}",
+                ['retour_id' => $retour->id]
+            );
             
             return response()->json([
                 'success' => true,

@@ -269,7 +269,12 @@ const handleCancel = async (id) => {
                 <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Article <span className="text-red-500">*</span></label>
                 <select className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" value={formData.article_id} onChange={e => setFormData({ ...formData, article_id: e.target.value })} required>
                   <option value="">Sélectionner un article</option>
-                  {articles.map(a => <option key={a.id} value={a.id}>{a.designation} — Stock: {a.quantite_stock}</option>)}
+                    {articles.map(a => (
+                        <option key={a.id} value={a.id}>
+                            {a.designation} — Stock total: {a.quantite_stock} 
+                            {a.stock_principal && ` (Magasin: ${a.stock_principal})`}
+                        </option>
+                    ))}
                 </select>
               </div>
               <div>

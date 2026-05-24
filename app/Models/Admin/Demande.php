@@ -73,4 +73,19 @@ public function getQuantiteRecuAttribute()
 {
     return $this->quantite_accorde ?? $this->quantite_demandee;
 }
+// app/Models/Admin/Demande.php
+
+public function getStockMagasinActuelAttribute()
+{
+    // Pour magasinier connecté
+    if (auth()->check() && auth()->user()->magasin_id) {
+        $stock = \App\Models\Admin\Stock::where('article_id', $this->article_id)
+            ->where('magasin_id', auth()->user()->magasin_id)
+            ->first();
+        return $stock ? $stock->quantite_disponible : 0;
+    }
+    
+    // Fallback: stock global
+    return $this->article->quantite_stock ?? 0;
+}
 }

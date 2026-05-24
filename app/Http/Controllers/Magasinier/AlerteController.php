@@ -47,7 +47,7 @@ class AlerteController extends Controller
     /**
      * Statistiques des alertes
      */
-    public function stats()
+ public function stats()
     {
         try {
             $query = Stock::with(['article', 'magasin'])
@@ -73,7 +73,12 @@ class AlerteController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur: ' . $e->getMessage()
+                'message' => 'Erreur: ' . $e->getMessage(),
+                'data' => [
+                    'total' => 0,
+                    'ruptures' => 0,
+                    'stock_bas' => 0
+                ]
             ], 500);
         }
     }

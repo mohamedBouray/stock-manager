@@ -44,14 +44,31 @@ class ReservationController extends Controller
         
         $article = Article::find($request->article_id);
         
-        // Vérifier la disponibilité
-        if ($article->quantite_stock < $request->quantite) {
+        // 🔥 IMPORTANT: Vérifier le stock TOTAL (tous magasins)
+        // L'utilisateur peut prendre de n'importe quel magasin
+        $totalStock = \App\Models\Admin\Stock::where('article_id', $request->article_id)->sum('quantite_disponible');
+        
+        if ($totalStock < $request->quantite) {
             return response()->json([
                 'success' => false,
-                'message' => 'Stock insuffisant pour cette réservation'
+                'message' => "Stock insuffisant. Stock total disponible: {$totalStock} {$article->unite_mesure}"
             ], 422);
         }
+        if (auth()->user()->magasin_id) {
+                $stockMagasin = \App\Models\Admin\Stock::where('article_id', $request->article_id)
+                    ->where('magasin_id', auth()->user()->magasin_id)
+                    ->first();
+                
+                if (!$stockMagasin || $stockMagasin->quantite_disponible < $request->quantite) {
+                    $disponible = $stockMagasin ? $stockMagasin->quantite_disponible : 0;
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Stock insuffisant dans votre magasin. Disponible: {$disponible} {$article->unite_mesure}"
+                    ], 422);
+                }
+            }
         
+        // Logique de réservation...
         $reservation = Reservation::create([
             'user_id' => Auth::id(),
             'article_id' => $request->article_id,

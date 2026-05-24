@@ -19,6 +19,9 @@ return new class extends Migration
             $table->timestamp('date_demande')->useCurrent();
             $table->timestamp('date_traitement')->nullable();
             $table->foreignId('traite_par')->nullable()->constrained('users');
+            $table->boolean('is_archived')->default(false);
+            $table->timestamp('archived_at')->nullable();
+            $table->integer('quantite_retournee')->default(0)->after('quantite_accorde');
             $table->timestamps();
         });
     }

@@ -8,6 +8,7 @@ use App\Models\Admin\Article;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Helpers\NotificationHelper;
 
 class DemandeController extends Controller
 {
@@ -67,7 +68,20 @@ class DemandeController extends Controller
             'date_demande' => now(),
             'statut' => 'en_attente',
         ]);
+        NotificationHelper::sendToMagasiniers(
+            'nouvelle_demande',
+            'Nouvelle demande',
+            "Une nouvelle demande a été créée par " . Auth::user()->name . " pour {$demande->article->designation}",
+            ['demande_id' => $demande->id]
+        );
         
+        // 🔔 Notification aux admins
+        NotificationHelper::sendToAdmins(
+            'nouvelle_demande',
+            'Nouvelle demande',
+            "Une nouvelle demande a été créée par " . Auth::user()->name,
+            ['demande_id' => $demande->id]
+        );
         return response()->json([
             'success' => true,
             'message' => 'Demande créée avec succès',

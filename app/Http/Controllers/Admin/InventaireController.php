@@ -12,7 +12,7 @@ use App\Models\Admin\Mouvement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-
+use App\Helpers\NotificationHelper;
 class InventaireController extends Controller
 {
     // 📋 Liste des inventaires
@@ -39,7 +39,6 @@ class InventaireController extends Controller
         ]);
         
         try {
-            // Générer un numéro d'inventaire unique
             $numero = 'INV-' . date('Ymd') . '-' . rand(1000, 9999);
             
             $inventaire = Inventaire::create([
@@ -51,17 +50,20 @@ class InventaireController extends Controller
                 'commentaire' => $request->commentaire
             ]);
             
-            // Créer les lignes d'inventaire pour tous les articles du magasin
+            // 🔥 CORRECTION: Prendre le stock réel du magasin
             $stocks = Stock::with('article')
                 ->where('magasin_id', $request->magasin_id)
                 ->get();
             
             foreach ($stocks as $stock) {
+                // 🔥 Utiliser quantite_disponible actuelle comme stock théorique
+                $quantiteTheorique = $stock->quantite_disponible;
+                
                 InventaireLigne::create([
                     'inventaire_id' => $inventaire->id,
                     'article_id' => $stock->article_id,
-                    'quantite_theorique' => $stock->quantite_disponible,
-                    'quantite_reelle' => $stock->quantite_disponible,
+                    'quantite_theorique' => $quantiteTheorique,
+                    'quantite_reelle' => $quantiteTheorique, // Au début = stock théorique
                     'ecart' => 0,
                     'est_corrige' => false
                 ]);
@@ -109,7 +111,7 @@ class InventaireController extends Controller
         }
     }
     
-    // ✅ Finaliser un inventaire
+    //  Finaliser un inventaire
     public function finalize($id)
     {
         try {
@@ -157,7 +159,12 @@ class InventaireController extends Controller
             ]);
             
             DB::commit();
-            
+             NotificationHelper::sendToMagasiniers(
+                'inventaire_finalise',
+                'Inventaire finalisé',
+                "L'inventaire du magasin a été finalisé par " . Auth::user()->name,
+                ['inventaire_id' => $inventaire->id]
+            );
             return response()->json(['message' => 'Inventaire finalisé avec succès', 'inventaire' => $inventaire]);
             
         } catch (\Exception $e) {

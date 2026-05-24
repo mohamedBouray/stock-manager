@@ -10,6 +10,7 @@ use App\Models\Admin\TransfertArticle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Helpers\NotificationHelper;
 
 class StockController extends Controller
 {
@@ -238,4 +239,29 @@ class StockController extends Controller
             ], 500);
         }
     }
+    public function checkAlertes()
+{
+    $alertes = Stock::with(['article', 'magasin'])
+        ->whereRaw('quantite_disponible <= articles.seuil_alerte')
+        ->join('articles', 'stocks.article_id', '=', 'articles.id')
+        ->get();
+    
+    foreach ($alertes as $alerte) {
+        NotificationHelper::sendToMagasiniers(
+            'stock_alerte',
+            ' Stock bas',
+            "L'article {$alerte->article->designation} est en stock bas ({$alerte->quantite_disponible} unités)",
+            ['article_id' => $alerte->article_id]
+        );
+        
+        NotificationHelper::sendToAdmins(
+            'stock_alerte',
+            ' Alerte stock',
+            "L'article {$alerte->article->designation} est sous le seuil d'alerte",
+            ['article_id' => $alerte->article_id]
+        );
+    }
+    
+    return response()->json(['message' => 'Alertes vérifiées']);
+}
 }

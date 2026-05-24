@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Helpers\NotificationHelper;
 
 class AdminUserController extends Controller
 {
@@ -146,7 +147,13 @@ class AdminUserController extends Controller
         $user->recordActivity('user_blocked', "Bloqué par " . auth()->user()->name);
         
         $user->tokens()->delete();
-        
+        NotificationHelper::send(
+            $user->id,
+            'compte_bloque',
+            'Compte bloqué',
+            "Votre compte a été bloqué par l'administrateur. Contactez le support.",
+            ['user_id' => $user->id]
+        );
         return response()->json([
             'message' => 'Utilisateur bloqué avec succès',
             'user' => $user
@@ -164,7 +171,13 @@ class AdminUserController extends Controller
             $user = User::findOrFail($id);
             $user->unblock();
             $user->recordActivity('user_unblocked', "Débloqué par " . auth()->user()->name);
-            
+            NotificationHelper::send(
+                $user->id,
+                'compte_debloque',
+                'Compte débloqué',
+                "Votre compte a été débloqué par l'administrateur. Vous pouvez vous reconnecter.",
+                ['user_id' => $user->id]
+            );
             return response()->json(['message' => 'Utilisateur débloqué']);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Erreur: ' . $e->getMessage()], 500);

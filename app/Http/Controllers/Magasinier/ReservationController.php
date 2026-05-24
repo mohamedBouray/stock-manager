@@ -7,6 +7,7 @@ use App\Models\Admin\Reservation;
 use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Helpers\NotificationHelper;
 
 class ReservationController extends Controller
 {
@@ -51,13 +52,13 @@ class ReservationController extends Controller
                 'statut' => 'confirmee'
             ]);
             
-            Notification::create([
-                'user_id' => $reservation->user_id,
-                'type' => 'reservation_confirmee',
-                'title' => 'Réservation confirmée',
-                'message' => 'Votre réservation pour ' . $reservation->article->designation . ' a été confirmée du ' . $reservation->date_debut . ' au ' . $reservation->date_fin,
-                'data' => ['reservation_id' => $reservation->id, 'statut' => 'confirmee']
-            ]);
+            NotificationHelper::send(
+                $reservation->user_id,
+                'reservation_confirmee',
+                'Réservation confirmée',
+                "Votre réservation pour {$reservation->article->designation} a été confirmée du {$reservation->date_debut} au {$reservation->date_fin}",
+                ['reservation_id' => $reservation->id]
+            );
             
             return response()->json([
                 'success' => true,
@@ -89,13 +90,13 @@ class ReservationController extends Controller
             ]);
             
 
-            Notification::create([
-                'user_id' => $reservation->user_id,
-                'type' => 'reservation_annulee',
-                'title' => ' Réservation annulée',
-                'message' => 'Votre réservation pour ' . $reservation->article->designation . ' a été annulée par le magasinier.',
-                'data' => ['reservation_id' => $reservation->id, 'statut' => 'annulee']
-            ]);
+            NotificationHelper::send(
+                $reservation->user_id,
+                'reservation_annulee',
+                'Réservation annulée',
+                "Votre réservation pour {$reservation->article->designation} a été annulée",
+                ['reservation_id' => $reservation->id]
+            );
             
             return response()->json([
                 'success' => true,

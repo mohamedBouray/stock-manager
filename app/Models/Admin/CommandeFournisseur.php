@@ -10,7 +10,7 @@ class CommandeFournisseur extends Model
     protected $table = 'commandes_fournisseurs';
 
     protected $fillable = [
-        'numero_commande', 'fournisseur', 'date_commande', 'statut'
+        'numero_commande', 'fournisseur', 'date_commande', 'statut', 'magasin_id'
     ];
     
     public function lignes(): HasMany

@@ -35,7 +35,7 @@ return new class extends Migration
             $table->string('theme')->default('light');
             $table->string('language')->default('fr');
             $table->timestamps();
-            
+            $table->foreignId('magasin_id')->nullable()->constrained('magasins')->onDelete('set null');
             // Indexes for performance
             $table->index('role');
             $table->index('status');
