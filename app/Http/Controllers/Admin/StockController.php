@@ -264,4 +264,29 @@ class StockController extends Controller
     
     return response()->json(['message' => 'Alertes vérifiées']);
 }
+    public function stats()
+    {
+        try {
+            $queryEntrees = Mouvement::where('type', 'entree');
+            $querySorties = Mouvement::where('type', 'sortie');
+            $queryAjustements = Mouvement::where('type', 'ajustement');
+            $queryMouvementsJour = Mouvement::whereDate('created_at', today());
+            
+            $stats = [
+                'total_entrees' => $queryEntrees->sum('quantite'),
+                'total_sorties' => $querySorties->sum('quantite'),
+                'total_ajustements' => $queryAjustements->sum('quantite'),
+                'mouvements_jour' => $queryMouvementsJour->count(),
+            ];
+            
+            return response()->json($stats);
+        } catch (\Exception $e) {
+            return response()->json([
+                'total_entrees' => 0,
+                'total_sorties' => 0,
+                'total_ajustements' => 0,
+                'mouvements_jour' => 0
+            ], 200);
+        }
+    }
 }

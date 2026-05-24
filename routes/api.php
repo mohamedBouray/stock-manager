@@ -28,7 +28,7 @@ use App\Http\Controllers\Admin\ScanController;
 use App\Http\Controllers\Admin\RetourController;
 use App\Http\Controllers\Admin\InventaireController;
 use App\Http\Controllers\Admin\TransfertController;
-use app\Http\Controllers\Admin\AlertesController;
+use App\Http\Controllers\Admin\AlertesController;
 use App\Http\Controllers\Admin\SettingsController;
 
 // ==================== CONTROLLERS MAGASINIER ====================
@@ -159,7 +159,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/commandes-auto/configurer', [CommandeAutoController::class, 'configurer']);
 
 
-
         // ---------------------- Gestion des Stocks ----------------------
         Route::prefix('stocks')->group(function () {
             Route::get('/', [StockController::class, 'index']);
@@ -172,6 +171,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // ---------------------- Mouvements Récents ----------------------
         Route::get('/mouvements/recent', [StockController::class, 'recentMouvements']);
+        Route::get('/mouvements/stats', [StockController::class, 'stats']); 
 
         // ---------------------- Rapports ----------------------
         Route::prefix('rapports')->group(function () {
@@ -180,15 +180,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
             Route::get('/approvisionnements', [RapportController::class, 'approvisionnements']);
             Route::get('/sorties', [RapportController::class, 'sorties']);
             Route::get('/fiche-stock/{article_id}', [RapportController::class, 'ficheStock']);
+            Route::get('/fiche-stock-globale', [RapportController::class, 'ficheStockGlobale']); 
             Route::get('/alertes', [RapportController::class, 'alertesPdf']);
         });
 
         // ---------------------- Export / Import ----------------------
         Route::prefix('export')->group(function () {
             Route::get('/articles', [ExportController::class, 'exportArticles']);
-            Route::get('/stocks-csv', [ExportController::class, 'exportStocksCsv']);
-            Route::get('/alertes-pdf', [RapportController::class, 'alertesPdf']);
+            Route::get('/stocks', [ExportController::class, 'exportStocks']);      // ← Nouveau
+            Route::get('/mouvements', [ExportController::class, 'exportMouvements']); // ← Nouveau
+            Route::get('/commandes', [ExportController::class, 'exportCommandes']);
         });
+        Route::post('/import/articles', [ExportController::class, 'importArticles']);
 
         // ---------------------- Scan Code-Barres ----------------------
         Route::prefix('scan')->group(function () {

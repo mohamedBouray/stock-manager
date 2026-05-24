@@ -225,5 +225,62 @@ class RapportController extends Controller
             ], 500);
         }
     }
+    
+public function ficheStockGlobale(Request $request)
+{
+    try {
+        Log::info('Génération de la fiche de stock globale');
+        
+        $query = Mouvement::with(['article', 'magasin', 'user']);
+        
+        if ($request->date_debut) {
+            $query->whereDate('created_at', '>=', $request->date_debut);
+        }
+        if ($request->date_fin) {
+            $query->whereDate('created_at', '<=', $request->date_fin);
+        }
+        
+        $mouvements = $query->orderBy('created_at', 'desc')->get();
+        
+        // Grouper les mouvements par article
+        $articles = Article::with(['stocks.magasin'])->get();
+        $articlesData = [];
+        
+        foreach ($articles as $article) {
+            $articleMouvements = $mouvements->filter(function($m) use ($article) {
+                return $m->article_id == $article->id;
+            });
+            
+            $articlesData[] = [
+                'article' => $article,
+                'mouvements' => $articleMouvements,
+                'stock_actuel' => $article->quantite_stock,
+                'total_entrees' => $articleMouvements->where('type', 'entree')->sum('quantite'),
+                'total_sorties' => $articleMouvements->where('type', 'sortie')->sum('quantite')
+            ];
+        }
+        
+        $data = [
+            'date_rapport' => now(),
+            'institut' => 'ISTAHT Tanger',
+            'date_debut' => $request->date_debut,
+            'date_fin' => $request->date_fin,
+            'articles' => $articlesData,
+            'total_articles' => $articles->count(),
+            'total_stock' => $articles->sum('quantite_stock')
+        ];
+        
+        $pdf = Pdf::loadView('pdf.fiche-stock-globale', $data);
+        return $pdf->download('fiche_stock_globale_' . date('Y-m-d') . '.pdf');
+        
+    } catch (\Exception $e) {
+        Log::error('Erreur fiche stock globale: ' . $e->getMessage());
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'line' => $e->getLine()
+        ], 500);
+    }
+}
 
 }

@@ -1,227 +1,279 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Search, Plus, X, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
+import { ClipboardList, Plus, X, Clock, CheckCircle, Eye, Play } from 'lucide-react';
 import api from '../../lib/apis/axios';
+import ActionConfirmModal from '../../lib/components/ActionConfirmModal';
 
-export default function Inventaire() {
-    const [inventaires, setInventaires] = useState([]);
-    const [magasins, setMagasins] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
-    const [selectedInventaire, setSelectedInventaire] = useState(null);
-    const [formData, setFormData] = useState({
-        magasin_id: '',
-        date_debut: new Date().toISOString().split('T')[0],
-        commentaire: ''
+function StatusBadge({ statut }) {
+  const map = {
+    planifie: { label: 'Planifié',  cls: 'bg-blue-50 text-blue-700 border border-blue-200' },
+    en_cours: { label: 'En cours',  cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
+    finalise: { label: 'Finalisé',  cls: 'bg-green-50 text-green-700 border border-green-200' },
+    annule:   { label: 'Annulé',    cls: 'bg-red-50 text-red-600 border border-red-200' },
+  };
+  const cfg = map[statut] || { label: statut, cls: 'bg-gray-100 text-gray-600' };
+  return <span className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg ${cfg.cls}`}>{cfg.label}</span>;
+}
+
+export default function AdminInventaire() {
+  const [inventaires, setInventaires] = useState([]);
+  const [magasins, setMagasins] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({
+    magasin_id: '',
+    date_debut: new Date().toISOString().split('T')[0],
+    commentaire: '',
+  });
+
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false, type: 'success', title: '', message: '', confirmText: 'Confirmer', onConfirm: () => {},
+  });
+  const openConfirm = (cfg) => setConfirmModal({ ...confirmModal, isOpen: true, ...cfg });
+  const closeConfirm = () => setConfirmModal(prev => ({ ...prev, isOpen: false }));
+
+  useEffect(() => { fetchInventaires(); fetchMagasins(); }, []);
+
+  const fetchInventaires = async () => {
+    try {
+      const response = await api.get('/api/admin/inventaires');
+      setInventaires(response.data || []);
+    } catch (error) { console.error(error); }
+    finally { setLoading(false); }
+  };
+
+  const fetchMagasins = async () => {
+    try {
+      const response = await api.get('/api/admin/catalogue-structure');
+      setMagasins(response.data.magasins || []);
+    } catch (error) { console.error(error); }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/api/admin/inventaires', formData);
+      setShowModal(false);
+      setFormData({ magasin_id: '', date_debut: new Date().toISOString().split('T')[0], commentaire: '' });
+      fetchInventaires();
+    } catch (error) { alert(error.response?.data?.message || 'Erreur'); }
+  };
+
+  const handleDemarrer = (inv) => {
+    openConfirm({
+      type: 'info',
+      title: 'Démarrer l\'inventaire',
+      message: `Démarrer l'inventaire ${inv.numero_inventaire} pour le magasin "${inv.magasin?.nom_magasin}" ?`,
+      confirmText: 'Oui, démarrer',
+      onConfirm: async () => {
+        try {
+          await api.post(`/api/admin/inventaires/${inv.id}/start`);
+          fetchInventaires();
+        } catch (error) { alert(error.response?.data?.message || 'Erreur lors du démarrage'); }
+      },
     });
+  };
 
-    useEffect(() => {
-        fetchInventaires();
-        fetchMagasins();
-    }, []);
-
-    const fetchInventaires = async () => {
+  const handleFinaliser = (inv) => {
+    openConfirm({
+      type: 'warning',
+      title: 'Finaliser l\'inventaire',
+      message: `Finaliser l'inventaire ${inv.numero_inventaire} ? Les écarts seront définitivement appliqués au stock. Cette action est irréversible.`,
+      confirmText: 'Oui, finaliser',
+      onConfirm: async () => {
         try {
-            const response = await api.get('/api/admin/inventaires');
-            setInventaires(response.data || []);
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    };
+          await api.post(`/api/admin/inventaires/${inv.id}/finalize`);
+          fetchInventaires();
+        } catch (error) { alert(error.response?.data?.message || 'Erreur lors de la finalisation'); }
+      },
+    });
+  };
 
-    const fetchMagasins = async () => {
-        try {
-            const response = await api.get('/api/admin/catalogue-structure');
-            setMagasins(response.data.magasins || []);
-        } catch (error) {
-            console.error(error);
-        }
-    };
+  const handleVoirDetails = async (id) => {
+    try {
+      const response = await api.get(`/api/admin/inventaires/${id}`);
+      const inv = response.data;
+      alert(`Inventaire ${inv.numero_inventaire}\nStatut: ${inv.statut}\nMagasin: ${inv.magasin?.nom_magasin}\nLignes: ${inv.lignes?.length || 0}`);
+    } catch (error) { alert('Erreur lors du chargement des détails'); }
+  };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            await api.post('/api/admin/inventaires', formData);
-            setShowModal(false);
-            setFormData({ magasin_id: '', date_debut: new Date().toISOString().split('T')[0], commentaire: '' });
-            fetchInventaires();
-            alert('Inventaire créé avec succès');
-        } catch (error) {
-            console.error(error);
-            alert(error.response?.data?.message || 'Erreur');
-        }
-    };
+  const counts = {
+    planifie: inventaires.filter(i => i.statut === 'planifie').length,
+    en_cours: inventaires.filter(i => i.statut === 'en_cours').length,
+    finalise: inventaires.filter(i => i.statut === 'finalise').length,
+  };
 
-    // ✅ AJOUTER CETTE FONCTION - Démarrer un inventaire
-    const handleDemarrer = async (id) => {
-        if (!window.confirm('Démarrer cet inventaire ?')) return;
-        try {
-            await api.post(`/api/admin/inventaires/${id}/start`);
-            alert('Inventaire démarré avec succès');
-            fetchInventaires();
-        } catch (error) {
-            console.error(error);
-            alert(error.response?.data?.message || 'Erreur lors du démarrage');
-        }
-    };
+  const inputCls = 'w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+  const labelCls = 'block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5';
 
-    // ✅ AJOUTER CETTE FONCTION - Finaliser un inventaire
-    const handleFinaliser = async (id) => {
-        if (!window.confirm('Finaliser cet inventaire ? Les écarts seront appliqués au stock.')) return;
-        try {
-            await api.post(`/api/admin/inventaires/${id}/finalize`);
-            alert('Inventaire finalisé avec succès');
-            fetchInventaires();
-        } catch (error) {
-            console.error(error);
-            alert(error.response?.data?.message || 'Erreur lors de la finalisation');
-        }
-    };
+  if (loading) return (
+    <div className="flex justify-center items-center h-64">
+      <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 
-    // ✅ AJOUTER CETTE FONCTION - Voir les détails d'un inventaire
-    const handleVoirDetails = async (id) => {
-        try {
-            const response = await api.get(`/api/admin/inventaires/${id}`);
-            setSelectedInventaire(response.data);
-            // Ouvrir un modal de détails (à implémenter)
-            alert(`Inventaire ${response.data.numero_inventaire}\nStatut: ${response.data.statut}\nMagasin: ${response.data.magasin?.nom_magasin}\nLignes: ${response.data.lignes?.length || 0}`);
-        } catch (error) {
-            console.error(error);
-            alert('Erreur lors du chargement des détails');
-        }
-    };
+  return (
+    <div className="min-h-screen bg-gray-50 ">
 
-    const getStatutBadge = (statut) => {
-        const config = {
-            planifie: 'bg-blue-100 text-blue-700',
-            en_cours: 'bg-yellow-100 text-yellow-700',
-            finalise: 'bg-green-100 text-green-700',
-            annule: 'bg-red-100 text-red-700'
-        };
-        const labels = {
-            planifie: '📅 Planifié',
-            en_cours: '⏳ En cours',
-            finalise: '✅ Finalisé',
-            annule: '❌ Annulé'
-        };
-        return <span className={`px-2 py-1 text-xs rounded-full ${config[statut]}`}>{labels[statut]}</span>;
-    };
-
-    if (loading) {
-        return (
-            <div className="flex justify-center items-center h-64">
-                <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-            </div>
-        );
-    }
-
-    return (
-        <div className="p-6">
-            {/* En-tête */}
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">📋 Inventaire physique</h1>
-                    <p className="text-sm text-gray-500 mt-1">Gérez les inventaires de stock</p>
-                </div>
-                <button
-                    onClick={() => setShowModal(true)}
-                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
-                >
-                    <Plus size={16} /> Nouvel inventaire
-                </button>
-            </div>
-
-            {/* Liste des inventaires */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {inventaires.length === 0 ? (
-                    <div className="col-span-full text-center py-12 text-gray-500">Aucun inventaire</div>
-                ) : (
-                    inventaires.map((inv) => (
-                        <div key={inv.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition">
-                            <div className="flex justify-between items-start mb-3">
-                                <div>
-                                    <h3 className="font-semibold text-gray-800">{inv.numero_inventaire}</h3>
-                                    <p className="text-sm text-gray-500">Magasin: {inv.magasin?.nom_magasin}</p>
-                                </div>
-                                {getStatutBadge(inv.statut)}
-                            </div>
-                            <div className="space-y-2 text-sm">
-                                <p><Clock size={14} className="inline mr-1" /> Début: {new Date(inv.date_debut).toLocaleDateString()}</p>
-                                {inv.date_fin && <p>Fin: {new Date(inv.date_fin).toLocaleDateString()}</p>}
-                                {inv.commentaire && <p className="text-gray-500">{inv.commentaire}</p>}
-                            </div>
-                            <div className="flex gap-2 mt-3">
-                                {inv.statut === 'planifie' && (
-                                    <button 
-                                        onClick={() => handleDemarrer(inv.id)}
-                                        className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
-                                    >
-                                        ▶️ Démarrer
-                                    </button>
-                                )}
-                                {inv.statut === 'en_cours' && (
-                                    <>
-                                        <button 
-                                            onClick={() => handleVoirDetails(inv.id)}
-                                            className="flex-1 py-2 bg-gray-600 text-white rounded-lg text-sm hover:bg-gray-700 transition"
-                                        >
-                                            👁️ Voir
-                                        </button>
-                                        <button 
-                                            onClick={() => handleFinaliser(inv.id)}
-                                            className="flex-1 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition"
-                                        >
-                                            ✅ Finaliser
-                                        </button>
-                                    </>
-                                )}
-                                {inv.statut === 'finalise' && (
-                                    <button 
-                                        onClick={() => handleVoirDetails(inv.id)}
-                                        className="w-full py-2 bg-gray-100 text-gray-600 rounded-lg text-sm hover:bg-gray-200 transition"
-                                    >
-                                        📄 Voir rapport
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    ))
-                )}
-            </div>
-
-            {/* Modal création */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl w-full max-w-md p-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-semibold">Nouvel inventaire</h2>
-                            <button onClick={() => setShowModal(false)}><X size={20} /></button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Magasin</label>
-                                <select className="w-full p-2 border rounded-lg" value={formData.magasin_id} onChange={(e) => setFormData({ ...formData, magasin_id: e.target.value })} required>
-                                    <option value="">Sélectionner</option>
-                                    {magasins.map(m => <option key={m.id} value={m.id}>{m.nom_magasin}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Date début</label>
-                                <input type="date" className="w-full p-2 border rounded-lg" value={formData.date_debut} onChange={(e) => setFormData({ ...formData, date_debut: e.target.value })} required />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Commentaire</label>
-                                <textarea className="w-full p-2 border rounded-lg" rows="2" value={formData.commentaire} onChange={(e) => setFormData({ ...formData, commentaire: e.target.value })} />
-                            </div>
-                            <div className="flex gap-3 pt-2">
-                                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2 border rounded-lg">Annuler</button>
-                                <button type="submit" className="flex-1 py-2 bg-emerald-600 text-white rounded-lg">Créer</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+      {/* En-tête */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
+            <span>Admin</span><span className="mx-1">›</span>
+            <span className="text-gray-600 font-medium">Inventaire physique</span>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-800 tracking-tight">Inventaire physique</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Gérez les inventaires de stock</p>
         </div>
-    );
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm flex-shrink-0"
+        >
+          <Plus size={15} /> Nouvel inventaire
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        {[
+          { label: 'Planifiés',  value: counts.planifie, accent: '#2563eb', bg: '#eff6ff' },
+          { label: 'En cours',   value: counts.en_cours, accent: '#f59e0b', bg: '#fffbeb' },
+          { label: 'Finalisés',  value: counts.finalise, accent: '#10b981', bg: '#f0fdf4' },
+        ].map((s, i) => (
+          <div key={i} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
+            <p className="text-2xl font-bold" style={{ color: s.accent }}>{s.value}</p>
+            <p className="text-xs font-semibold text-gray-500 mt-0.5">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Grille inventaires */}
+      {inventaires.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-14 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <ClipboardList size={26} className="text-gray-400" />
+          </div>
+          <p className="text-sm font-semibold text-gray-600">Aucun inventaire</p>
+          <button onClick={() => setShowModal(true)} className="mt-3 text-xs text-blue-600 hover:underline font-medium">
+            + Créer le premier inventaire
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {inventaires.map(inv => {
+            const accentMap = { planifie: '#2563eb', en_cours: '#f59e0b', finalise: '#10b981', annule: '#ef4444' };
+            const accent = accentMap[inv.statut] || '#9ca3af';
+            return (
+              <div key={inv.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+                <div className="h-1 w-full" style={{ backgroundColor: accent }} />
+                <div className="p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="min-w-0 pr-3">
+                      <p className="text-sm font-bold text-gray-800 font-mono">{inv.numero_inventaire}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{inv.magasin?.nom_magasin}</p>
+                    </div>
+                    <StatusBadge statut={inv.statut} />
+                  </div>
+
+                  <div className="bg-gray-50 rounded-xl p-3 mb-4 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-500 flex items-center gap-1"><Clock size={11} /> Début</span>
+                      <span className="font-semibold text-gray-700">{new Date(inv.date_debut).toLocaleDateString('fr-FR')}</span>
+                    </div>
+                    {inv.date_fin && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500">Fin</span>
+                        <span className="font-semibold text-gray-700">{new Date(inv.date_fin).toLocaleDateString('fr-FR')}</span>
+                      </div>
+                    )}
+                    {inv.commentaire && (
+                      <p className="text-[11px] text-gray-400 pt-1 border-t border-gray-100">{inv.commentaire}</p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    {inv.statut === 'planifie' && (
+                      <button
+                        onClick={() => handleDemarrer(inv)}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition"
+                      >
+                        <Play size={12} /> Démarrer
+                      </button>
+                    )}
+                    {inv.statut === 'en_cours' && (
+                      <>
+                        <button
+                          onClick={() => handleVoirDetails(inv.id)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-semibold transition"
+                        >
+                          <Eye size={12} /> Voir
+                        </button>
+                        <button
+                          onClick={() => handleFinaliser(inv)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-semibold transition"
+                        >
+                          <CheckCircle size={12} /> Finaliser
+                        </button>
+                      </>
+                    )}
+                    {inv.statut === 'finalise' && (
+                      <button
+                        onClick={() => handleVoirDetails(inv.id)}
+                        className="w-full flex items-center justify-center gap-1.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-xs font-semibold transition"
+                      >
+                        <Eye size={12} /> Voir rapport
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modal création */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl border border-gray-100">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">Nouvel inventaire</h2>
+              <button onClick={() => setShowModal(false)} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition"><X size={18} /></button>
+            </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div>
+                <label className={labelCls}>Magasin <span className="text-red-500">*</span></label>
+                <select className={inputCls} value={formData.magasin_id} onChange={e => setFormData({ ...formData, magasin_id: e.target.value })} required>
+                  <option value="">Sélectionner un magasin</option>
+                  {magasins.map(m => <option key={m.id} value={m.id}>{m.nom_magasin}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Date de début <span className="text-red-500">*</span></label>
+                <input type="date" className={inputCls} value={formData.date_debut} onChange={e => setFormData({ ...formData, date_debut: e.target.value })} required />
+              </div>
+              <div>
+                <label className={labelCls}>Commentaire <span className="text-gray-400 font-normal normal-case">(optionnel)</span></label>
+                <textarea className={`${inputCls} resize-none`} rows="2" value={formData.commentaire} onChange={e => setFormData({ ...formData, commentaire: e.target.value })} placeholder="Notes sur cet inventaire..." />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">Annuler</button>
+                <button type="submit" className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition shadow-sm">Créer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <ActionConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={closeConfirm}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+        confirmText={confirmModal.confirmText}
+        cancelText="Annuler"
+      />
+    </div>
+  );
 }

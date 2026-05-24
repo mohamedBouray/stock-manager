@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Package, AlertTriangle, TrendingUp, TrendingDown, Edit, X, CheckCircle } from 'lucide-react';
 import api from '../../lib/apis/axios';
+import ActionConfirmModal from '../../lib/components/ActionConfirmModal';
 
 export default function Stocks() {
     const [stocks, setStocks] = useState([]);
@@ -15,6 +16,30 @@ export default function Stocks() {
     const [nouvelleQuantite, setNouvelleQuantite] = useState('');
     const [motifAjustement, setMotifAjustement] = useState('');
 
+    // 🔥 ActionConfirmModal state
+    const [actionModal, setActionModal] = useState({
+        isOpen: false,
+        type: 'success',
+        title: '',
+        message: '',
+        confirmText: 'OK',
+        onConfirm: null
+    });
+
+    const openConfirmModal = (type, title, message, confirmText, onConfirm) => {
+        setActionModal({
+            isOpen: true,
+            type,
+            title,
+            message,
+            confirmText,
+            onConfirm: () => {
+                if (onConfirm) onConfirm();
+                setActionModal(prev => ({ ...prev, isOpen: false }));
+            }
+        });
+    };
+
     useEffect(() => {
         fetchStocks();
         fetchMagasins();
@@ -22,12 +47,14 @@ export default function Stocks() {
     }, [selectedMagasin]);
 
     const fetchStocks = async () => {
+        setLoading(true);
         try {
             const params = selectedMagasin ? { magasin_id: selectedMagasin } : {};
             const response = await api.get('/api/admin/stocks', { params });
             setStocks(response.data.stocks?.data || response.data.stocks || []);
         } catch (error) {
             console.error(error);
+            openConfirmModal('danger', 'Erreur', 'Erreur lors du chargement des stocks', 'OK', null);
         } finally {
             setLoading(false);
         }
@@ -41,19 +68,19 @@ export default function Stocks() {
             console.error(error);
         }
     };
-
     const fetchAlertes = async () => {
         try {
-            const response = await api.get('/api/admin/suivi-alertes');
-            setAlertes(response.data.alertes || []);
+            // 🔥 CHANGER L'URL
+            const response = await api.get('/api/admin/alertes');
+            setAlertes(response.data.data || []);
         } catch (error) {
             console.error(error);
+            setAlertes([]);
         }
     };
-
     const handleAjustement = async () => {
         if (!motifAjustement.trim()) {
-            alert('Veuillez saisir un motif pour cet ajustement');
+            openConfirmModal('warning', 'Attention', 'Veuillez saisir un motif pour cet ajustement', 'OK', null);
             return;
         }
         
@@ -68,52 +95,10 @@ export default function Stocks() {
             setMotifAjustement('');
             fetchStocks();
             fetchAlertes();
-            alert('Stock ajusté avec succès');
+            openConfirmModal('success', 'Succès', 'Stock ajusté avec succès', 'OK', null);
         } catch (error) {
             console.error(error);
-            alert(error.response?.data?.message || 'Erreur lors de l\'ajustement');
-        }
-    };
-
-    const handleEntreeRapide = async (stock) => {
-        const quantite = prompt(`Entrez la quantité à ajouter pour ${stock.article?.designation}:`, '1');
-        if (quantite && parseInt(quantite) > 0) {
-            try {
-                await api.post('/api/admin/stocks/entree', {
-                    article_id: stock.article_id,
-                    magasin_id: stock.magasin_id,
-                    quantite: parseInt(quantite),
-                    motif: 'Entrée rapide depuis interface stocks'
-                });
-                fetchStocks();
-                fetchAlertes();
-                alert(`✅ ${quantite} unité(s) ajoutée(s) au stock`);
-            } catch (error) {
-                alert(error.response?.data?.message || 'Erreur');
-            }
-        }
-    };
-
-    const handleSortieRapide = async (stock) => {
-        const quantite = prompt(`Entrez la quantité à retirer pour ${stock.article?.designation}:`, '1');
-        if (quantite && parseInt(quantite) > 0) {
-            if (parseInt(quantite) > stock.quantite_disponible) {
-                alert(`Stock insuffisant! Disponible: ${stock.quantite_disponible}`);
-                return;
-            }
-            try {
-                await api.post('/api/admin/stocks/sortie', {
-                    article_id: stock.article_id,
-                    magasin_id: stock.magasin_id,
-                    quantite: parseInt(quantite),
-                    motif: 'Sortie rapide depuis interface stocks'
-                });
-                fetchStocks();
-                fetchAlertes();
-                alert(`✅ ${quantite} unité(s) retirée(s) du stock`);
-            } catch (error) {
-                alert(error.response?.data?.message || 'Erreur');
-            }
+            openConfirmModal('danger', 'Erreur', error.response?.data?.message || 'Erreur lors de l\'ajustement', 'OK', null);
         }
     };
 
@@ -131,17 +116,21 @@ export default function Stocks() {
     if (loading) {
         return (
             <div className="flex justify-center items-center h-64">
-                <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }
 
     return (
-        <div className="p-6">
+        <div >
             {/* En-tête */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-800">📦 Gestion des stocks</h1>
-                <p className="text-sm text-gray-500 mt-1">Consultez et ajustez les stocks par magasin</p>
+                <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
+                    Gestion des stocks
+                </h1>
+                <p className="text-sm text-gray-500 mt-0.5">
+                    Consultez et ajustez les stocks par magasin
+                </p>
             </div>
 
             {/* Cartes statistiques */}
@@ -149,44 +138,44 @@ export default function Stocks() {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-gray-500">Total articles</p>
+                            <p className="text-xs text-gray-400">Total articles</p>
                             <p className="text-2xl font-bold text-gray-800">{totalArticles}</p>
                         </div>
-                        <div className="bg-blue-500 p-3 rounded-xl">
-                            <Package size={20} className="text-white" />
+                        <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                            <Package size={20} className="text-blue-600" />
                         </div>
                     </div>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-gray-500">Quantité totale</p>
+                            <p className="text-xs text-gray-400">Quantité totale</p>
                             <p className="text-2xl font-bold text-gray-800">{totalQuantite}</p>
                         </div>
-                        <div className="bg-green-500 p-3 rounded-xl">
-                            <TrendingUp size={20} className="text-white" />
+                        <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
+                            <TrendingUp size={20} className="text-green-600" />
                         </div>
                     </div>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-gray-500">Alertes stock</p>
+                            <p className="text-xs text-gray-400">Alertes stock</p>
                             <p className="text-2xl font-bold text-orange-600">{alertesCount}</p>
                         </div>
-                        <div className="bg-orange-500 p-3 rounded-xl">
-                            <AlertTriangle size={20} className="text-white" />
+                        <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+                            <AlertTriangle size={20} className="text-orange-600" />
                         </div>
                     </div>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                     <div className="flex items-center justify-between">
                         <div>
-                            <p className="text-sm text-gray-500">Magasins</p>
+                            <p className="text-xs text-gray-400">Magasins</p>
                             <p className="text-2xl font-bold text-gray-800">{magasins.length}</p>
                         </div>
-                        <div className="bg-purple-500 p-3 rounded-xl">
-                            <Filter size={20} className="text-white" />
+                        <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                            <Filter size={20} className="text-purple-600" />
                         </div>
                     </div>
                 </div>
@@ -196,8 +185,8 @@ export default function Stocks() {
             {alertesCount > 0 && (
                 <div className="mb-6 bg-orange-50 border border-orange-200 rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-2">
-                        <AlertTriangle className="text-orange-600" size={18} />
-                        <h3 className="font-semibold text-orange-800">⚠️ Alertes stock bas</h3>
+                        <AlertTriangle size={18} className="text-orange-600" />
+                        <h3 className="font-semibold text-orange-800 text-sm">Alertes stock bas</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                         {alertes.slice(0, 6).map(alerte => (
@@ -222,13 +211,13 @@ export default function Stocks() {
                         placeholder="Rechercher un article..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm"
+                        className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
                     />
                 </div>
                 <select
                     value={selectedMagasin}
                     onChange={(e) => setSelectedMagasin(e.target.value)}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
                 >
                     <option value="">Tous les magasins</option>
                     {magasins.map(m => (
@@ -237,7 +226,7 @@ export default function Stocks() {
                 </select>
                 <button
                     onClick={() => { setSelectedMagasin(''); setSearch(''); }}
-                    className="px-4 py-2 bg-gray-100 rounded-lg text-sm hover:bg-gray-200 cursor-pointer"
+                    className="px-4 py-2 bg-gray-100 rounded-lg text-sm hover:bg-gray-200 transition cursor-pointer"
                 >
                     Réinitialiser
                 </button>
@@ -249,20 +238,20 @@ export default function Stocks() {
                     <table className="w-full">
                         <thead className="bg-gray-50 border-b border-gray-100">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Code Barre</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Article</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500">Magasin</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500">Quantité</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500">Seuil alerte</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500">Statut</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500">Actions rapides</th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500">Ajuster</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code Barre</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Article</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Magasin</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Quantité</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Seuil alerte</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ajuster</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {filteredStocks.length === 0 ? (
                                 <tr>
-                                    <td colSpan="8" className="px-6 py-12 text-center text-gray-500">
+                                    <td colSpan="7" className="px-4 py-12 text-center text-gray-500">
+                                        <Package size={40} className="mx-auto text-gray-300 mb-2" />
                                         Aucun stock trouvé
                                     </td>
                                 </tr>
@@ -270,38 +259,30 @@ export default function Stocks() {
                                 filteredStocks.map((stock) => {
                                     const estAlerte = stock.quantite_disponible <= (stock.article?.seuil_alerte || 0);
                                     return (
-                                        <tr key={stock.id} className="hover:bg-gray-50">
-                                            <td className="px-6 py-4 font-mono text-sm">{stock.article?.code_barre || '-'}</td>
-                                            <td className="px-6 py-4 font-medium">{stock.article?.designation || '-'}</td>
-                                            <td className="px-6 py-4">{stock.magasin?.nom_magasin || '-'}</td>
-                                            <td className="px-6 py-4 text-center font-bold">{stock.quantite_disponible}</td>
-                                            <td className="px-6 py-4 text-center">{stock.article?.seuil_alerte || '-'}</td>
-                                            <td className="px-6 py-4 text-center">
+                                        <tr key={stock.id} className="hover:bg-gray-50 transition">
+                                            <td className="px-4 py-3 font-mono text-xs">{stock.article?.code_barre || '-'}</td>
+                                            <td className="px-4 py-3">
+                                                <span className="font-medium text-gray-800">{stock.article?.designation || '-'}</span>
+                                            </td>
+                                            <td className="px-4 py-3 text-gray-600 text-sm">{stock.magasin?.nom_magasin || '-'}</td>
+                                            <td className="px-4 py-3 text-center">
+                                                <span className={`font-bold ${estAlerte ? 'text-red-600' : 'text-gray-800'}`}>
+                                                    {stock.quantite_disponible}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-center text-gray-500 text-sm">{stock.article?.seuil_alerte || '-'}</td>
+                                            <td className="px-4 py-3 text-center">
                                                 {estAlerte ? (
-                                                    <span className="px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">⚠️ Stock bas</span>
+                                                    <span className="inline-flex px-2 py-1 text-xs rounded-full bg-red-100 text-red-700">
+                                                        Stock bas
+                                                    </span>
                                                 ) : (
-                                                    <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">✓ Normal</span>
+                                                    <span className="inline-flex px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">
+                                                        Normal
+                                                    </span>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <button
-                                                        onClick={() => handleEntreeRapide(stock)}
-                                                        className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200 transition cursor-pointer"
-                                                        title="Ajouter au stock"
-                                                    >
-                                                        + Entrée
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleSortieRapide(stock)}
-                                                        className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs hover:bg-red-200 transition cursor-pointer"
-                                                        title="Retirer du stock"
-                                                    >
-                                                        - Sortie
-                                                    </button>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
+                                            <td className="px-4 py-3 text-center">
                                                 <button
                                                     onClick={() => {
                                                         setSelectedStock(stock);
@@ -309,7 +290,7 @@ export default function Stocks() {
                                                         setMotifAjustement('');
                                                         setShowAjustement(true);
                                                     }}
-                                                    className="p-1 text-blue-500 hover:bg-blue-50 rounded cursor-pointer"
+                                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
                                                     title="Ajuster"
                                                 >
                                                     <Edit size={16} />
@@ -329,31 +310,31 @@ export default function Stocks() {
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                     <div className="bg-white rounded-xl w-full max-w-md p-6">
                         <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-semibold">Ajuster le stock</h2>
+                            <h2 className="text-lg font-semibold text-gray-800">Ajuster le stock</h2>
                             <button onClick={() => setShowAjustement(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer">
                                 <X size={20} />
                             </button>
                         </div>
                         <div className="space-y-4">
                             <div className="p-3 bg-gray-50 rounded-lg">
-                                <p><strong>Article:</strong> {selectedStock.article?.designation}</p>
-                                <p><strong>Magasin:</strong> {selectedStock.magasin?.nom_magasin}</p>
-                                <p><strong>Stock actuel:</strong> <span className="font-bold">{selectedStock.quantite_disponible}</span></p>
+                                <p className="text-sm"><strong className="text-gray-700">Article:</strong> <span className="text-gray-600">{selectedStock.article?.designation}</span></p>
+                                <p className="text-sm mt-1"><strong className="text-gray-700">Magasin:</strong> <span className="text-gray-600">{selectedStock.magasin?.nom_magasin}</span></p>
+                                <p className="text-sm mt-1"><strong className="text-gray-700">Stock actuel:</strong> <span className="font-bold text-blue-600">{selectedStock.quantite_disponible}</span></p>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-1">Nouvelle quantité</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Nouvelle quantité</label>
                                 <input
                                     type="number"
                                     min="0"
-                                    className="w-full p-2 border rounded-lg"
+                                    className="w-full p-2 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
                                     value={nouvelleQuantite}
                                     onChange={(e) => setNouvelleQuantite(e.target.value)}
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-1">Motif de l'ajustement *</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Motif de l'ajustement <span className="text-red-500">*</span></label>
                                 <textarea
-                                    className="w-full p-2 border rounded-lg"
+                                    className="w-full p-2 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none resize-none"
                                     rows="2"
                                     value={motifAjustement}
                                     onChange={(e) => setMotifAjustement(e.target.value)}
@@ -361,10 +342,10 @@ export default function Stocks() {
                                 />
                             </div>
                             <div className="flex gap-3 pt-2">
-                                <button onClick={() => setShowAjustement(false)} className="flex-1 py-2 border rounded-lg cursor-pointer">
+                                <button onClick={() => setShowAjustement(false)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition cursor-pointer">
                                     Annuler
                                 </button>
-                                <button onClick={handleAjustement} className="flex-1 py-2 bg-emerald-600 text-white rounded-lg cursor-pointer hover:bg-emerald-700">
+                                <button onClick={handleAjustement} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition cursor-pointer">
                                     Enregistrer
                                 </button>
                             </div>
@@ -372,6 +353,18 @@ export default function Stocks() {
                     </div>
                 </div>
             )}
+
+            {/* ActionConfirmModal */}
+            <ActionConfirmModal
+                isOpen={actionModal.isOpen}
+                onClose={() => setActionModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={actionModal.onConfirm}
+                title={actionModal.title}
+                message={actionModal.message}
+                type={actionModal.type}
+                confirmText={actionModal.confirmText}
+                cancelText="Annuler"
+            />
         </div>
     );
 }

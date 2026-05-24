@@ -21,7 +21,7 @@ class AlertesController extends Controller
                     $q->whereColumn('stocks.quantite_disponible', '<=', 'articles.seuil_alerte');
                 });
             
-            // 🔥 Admin peut filtrer par magasin
+            // Filtrer par magasin
             if ($request->magasin_id) {
                 $query->where('magasin_id', $request->magasin_id);
             }
@@ -91,7 +91,13 @@ class AlertesController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur: ' . $e->getMessage()
+                'message' => $e->getMessage(),
+                'data' => [
+                    'total' => 0,
+                    'ruptures' => 0,
+                    'stock_bas' => 0,
+                    'par_magasin' => []
+                ]
             ], 500);
         }
     }
