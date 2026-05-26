@@ -1,4 +1,3 @@
-// src/pages/Magasinier/Alertes.jsx
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Package, CheckCircle, Bell, TrendingUp, AlertCircle } from 'lucide-react';
 import api from '../../lib/apis/axios';
@@ -57,10 +56,10 @@ export default function MagasinierAlertes() {
     }
 
     return (
-        <div className="p-6">
+        <div >
             {/* En-tête */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-800">🔔 Alertes stock</h1>
+                <h1 className="text-2xl font-bold text-gray-800">Alertes stock</h1>
                 <p className="text-sm text-gray-500 mt-1">Surveillance des niveaux de stock</p>
             </div>
 

@@ -55,16 +55,19 @@ export default function Demandes() {
     });
     };
     
-  const fetchDemandes = async () => {
+const fetchDemandes = async () => {
     try {
       const response = await api.get('/api/user/demandes');
       let data = [];
       if (response.data?.data?.data) data = response.data.data.data;
       else if (response.data?.data && Array.isArray(response.data.data)) data = response.data.data;
       else if (Array.isArray(response.data)) data = response.data;
-      setDemandes(data.filter(d => d.is_archived !== 1));
+      
+      // 🔥 AJOUTER CETTE LIGNE - Manquante!
+      setDemandes(data);
+      
     } catch { setDemandes([]); } finally { setLoading(false); }
-  };
+};
 
   const fetchArticles = async () => {
     try {
@@ -77,16 +80,16 @@ export default function Demandes() {
     } catch { setArticles([]); }
   };
 
-  const fetchArchives = async () => {
+const fetchArchives = async () => {
     try {
       const response = await api.get('/api/user/demandes/archives/list');
       let data = [];
       if (response.data?.data?.data) data = response.data.data.data;
       else if (response.data?.data && Array.isArray(response.data.data)) data = response.data.data;
       else if (Array.isArray(response.data)) data = response.data;
-      setArchives(data.filter(d => d.is_archived === 1));
+      setArchives(data);
     } catch { setArchives([]); }
-  };
+};
 
 const handleArchive = async (id) => {
   try {

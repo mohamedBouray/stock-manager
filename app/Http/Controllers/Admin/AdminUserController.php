@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Helpers\NotificationHelper;
+use App\Models\Admin\Article;           
+use App\Models\Admin\CommandeFournisseur; 
+use App\Models\Admin\Mouvement; 
 
 class AdminUserController extends Controller
 {

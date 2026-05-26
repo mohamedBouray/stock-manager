@@ -1,4 +1,4 @@
-// src/lib/components/Profile.jsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
@@ -95,7 +95,9 @@ export default function Profile({ initialSection = 'profile' }) {
                 ? await api.get(`/api/admin/users/${userId}`)
                 : await api.get('/api/user');
 
-            const userData = r.data;
+            // 🔥 CORRECTION ICI
+            const userData = r.data?.data || r.data;
+            
             setUser(userData);
             setFormData({
                 name:      userData.name      || '',
@@ -110,10 +112,12 @@ export default function Profile({ initialSection = 'profile' }) {
             if (userData.profile_image) {
                 imageUrl = userData.profile_image.startsWith('http')
                     ? userData.profile_image
-                    : `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}${userData.profile_image.startsWith('/storage/') ? '' : '/storage/'}${userData.profile_image}`;
+                    : `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${userData.profile_image.startsWith('/storage/') ? '' : '/storage/'}${userData.profile_image}`;
             }
             setImagePreview(imageUrl);
-        } catch {
+            
+        } catch (error) {
+            console.error('Erreur fetchUser:', error);
             showToast('Erreur lors du chargement du profil', 'danger');
         } finally {
             setLoading(false);

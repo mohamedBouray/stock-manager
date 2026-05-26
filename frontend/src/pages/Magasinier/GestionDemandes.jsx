@@ -107,7 +107,7 @@ export default function GestionDemandes() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 ">
 
       {/* En-tête */}
       <div className="mb-6">

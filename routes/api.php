@@ -22,7 +22,7 @@ use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\CommandeController;
 use App\Http\Controllers\Admin\StockController;
 use App\Http\Controllers\Admin\RapportController;
-use App\Http\Controllers\Admin\ExportController;
+use App\Http\Controllers\Admin\StockImportExportController;
 use App\Http\Controllers\Admin\CommandeAutoController;
 use App\Http\Controllers\Admin\ScanController;
 use App\Http\Controllers\Admin\RetourController;
@@ -142,6 +142,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // ---------------------- Gestion du Catalogue ----------------------
         Route::get('/catalogue-structure', [ArticleController::class, 'getCatalogueStructure']);
+        Route::get('/articles', [ArticleController::class, 'index']); 
         Route::post('/magasins', [ArticleController::class, 'storeMagasin']);
         Route::post('/articles', [ArticleController::class, 'store']);
         Route::post('/familles', [ArticleController::class, 'storeFamille']);
@@ -185,13 +186,27 @@ Route::middleware(['auth:sanctum'])->group(function () {
         });
 
         // ---------------------- Export / Import ----------------------
-        Route::prefix('export')->group(function () {
-            Route::get('/articles', [ExportController::class, 'exportArticles']);
-            Route::get('/stocks', [ExportController::class, 'exportStocks']);      // ← Nouveau
-            Route::get('/mouvements', [ExportController::class, 'exportMouvements']); // ← Nouveau
-            Route::get('/commandes', [ExportController::class, 'exportCommandes']);
-        });
-        Route::post('/import/articles', [ExportController::class, 'importArticles']);
+        // ==================== IMPORTS/EXPORTS ====================
+        
+        // 📥 Imports (POST)
+        Route::post('/import/articles', [StockImportExportController::class, 'importArticles']);
+        Route::post('/import/categories', [StockImportExportController::class, 'importCategories']);
+        Route::post('/import/familles', [StockImportExportController::class, 'importFamilles']);
+        Route::post('/import/magasins', [StockImportExportController::class, 'importMagasins']);
+        Route::post('/import/utilisateurs', [StockImportExportController::class, 'importUtilisateurs']);
+        Route::post('/import/mouvements', [StockImportExportController::class, 'importMouvements']);
+
+        // 📤 Exports (GET)
+        Route::get('/export/articles', [StockImportExportController::class, 'exportArticles']); 
+        Route::get('/export/alertes', [StockImportExportController::class, 'exportArticlesAlerte']);
+        Route::get('/export/demandes', [StockImportExportController::class, 'exportDemandes']);
+        Route::get('/export/inventaires', [StockImportExportController::class, 'exportInventaires']);
+        Route::get('/export/consommation', [StockImportExportController::class, 'exportRapportConsommation']);
+        Route::get('/export/familles', [StockImportExportController::class, 'exportFamilles']);
+        Route::get('/export/categories', [StockImportExportController::class, 'exportCategories']);
+
+        // 📄 Template (GET)
+        Route::get('/template', [StockImportExportController::class, 'downloadTemplate']);
 
         // ---------------------- Scan Code-Barres ----------------------
         Route::prefix('scan')->group(function () {

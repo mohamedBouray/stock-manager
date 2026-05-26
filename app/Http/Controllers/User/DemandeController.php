@@ -21,6 +21,7 @@ class DemandeController extends Controller
         $query = Demande::with(['article', 'retours' => function($q) {
             $q->where('statut', 'approuve');
         }])->where('user_id', Auth::id());
+        $query->where('is_archived', '!=', 1);
         
         if (request()->statut && in_array(request()->statut, ['en_attente', 'approuvee', 'refusee', 'livree'])) {
             $query->where('statut', request()->statut);
@@ -142,22 +143,26 @@ class DemandeController extends Controller
             'message' => 'Demande annulée avec succès'
         ]);
     }
-    public function archive($id)
-    {
-        $demande = Demande::where('user_id', Auth::id())
-            ->where('id', $id)
-            ->firstOrFail();
-        
-        $demande->update([
-            'is_archived' => true,
+   // Dans DemandeController.php, modifier la méthode archive()
+public function archive($id)
+{
+    $demande = Demande::where('user_id', Auth::id())
+        ->where('id', $id)
+        ->firstOrFail();
+    
+    // 🔥 Utiliser DB::table directement (contourne le modèle)
+    \DB::table('demandes')
+        ->where('id', $demande->id)
+        ->update([
+            'is_archived' => 1,
             'archived_at' => now()
         ]);
-        
-        return response()->json([
-            'success' => true,
-            'message' => 'Demande archivée'
-        ]);
-    }
+    
+    return response()->json([
+        'success' => true,
+        'message' => 'Demande archivée'
+    ]);
+}
 
     // Ajouter cette méthode
     public function getArchives()

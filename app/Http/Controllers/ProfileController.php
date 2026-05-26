@@ -16,20 +16,24 @@ class ProfileController extends Controller
     {
         $user = $request->user();
         
+        //  Uniformiser la réponse avec 'data'
         return response()->json([
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'phone' => $user->phone,
-            'role' => $user->role,
-            'language' => $user->language ?? 'fr',
-            'bio' => $user->bio,
-            'job_title' => $user->job_title,
-            'profile_image' => $user->profile_image,
-            'created_at' => $user->created_at,
-            'last_login_at' => $user->last_login_at,
-            'is_blocked' => $user->is_blocked,
-            'email_verified_at' => $user->email_verified_at,
+            'success' => true,
+            'data' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'role' => $user->role,
+                'language' => $user->language ?? 'fr',
+                'bio' => $user->bio,
+                'job_title' => $user->job_title,
+                'profile_image' => $user->profile_image,
+                'created_at' => $user->created_at,
+                'last_login_at' => $user->last_login_at,
+                'is_blocked' => $user->is_blocked,
+                'email_verified_at' => $user->email_verified_at,
+            ]
         ]);
     }
 

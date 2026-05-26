@@ -10,9 +10,29 @@ use App\Models\Admin\Magasins;
 use App\Models\Admin\Categories;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log; 
 
 class ArticleController extends Controller
 {
+
+    public function index(Request $request)
+        {
+            try {
+                $articles = Article::with(['categorie.famille', 'magasins'])->get();
+                
+                return response()->json([
+                    'success' => true,
+                    'data' => $articles,
+                    'total' => $articles->count()
+                ]);
+            } catch (\Exception $e) {
+                Log::error('Erreur index articles: ' . $e->getMessage());
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Erreur lors de la récupération des articles'
+                ], 500);
+            }
+        }
     /**
      * جلب بنية الكاطالوق كاملة (الدالة السابقة)
      */

@@ -1,4 +1,3 @@
-// src/pages/Magasinier/BonsReception.jsx (Version améliorée)
 import React, { useState, useEffect } from 'react';
 // En haut du fichier
 import { FileText, Search, Download, Eye, Calendar, Filter, Printer, Package, Building2 } from 'lucide-react';
@@ -18,34 +17,34 @@ export default function BonsReception() {
         fetchBons();
     }, [dateDebut, dateFin]);
 
-const fetchBons = async () => {
-    setLoading(true);
-    try {
-        const response = await api.get('/api/magasinier/bons-reception');
-        
-        console.log('Réponse complète:', response);
-        console.log('response.data:', response.data);
-        
-        // 🔥 CORRECTION: Prendre response.data.data directement
-        let bonsData = [];
-        if (response.data?.data && Array.isArray(response.data.data)) {
-            bonsData = response.data.data;
-        } else if (response.data?.data && response.data.data.data) {
-            // Cas pagination
-            bonsData = response.data.data.data;
-        } else if (Array.isArray(response.data)) {
-            bonsData = response.data;
+    const fetchBons = async () => {
+        setLoading(true);
+        try {
+            const response = await api.get('/api/magasinier/bons-reception');
+            
+            console.log('Réponse complète:', response);
+            console.log('response.data:', response.data);
+            
+            // 🔥 CORRECTION: Prendre response.data.data directement
+            let bonsData = [];
+            if (response.data?.data && Array.isArray(response.data.data)) {
+                bonsData = response.data.data;
+            } else if (response.data?.data && response.data.data.data) {
+                // Cas pagination
+                bonsData = response.data.data.data;
+            } else if (Array.isArray(response.data)) {
+                bonsData = response.data;
+            }
+            
+            console.log('Bons data extraits:', bonsData);
+            setBons(bonsData);
+        } catch (error) {
+            console.error('Erreur fetch:', error);
+            setBons([]);
+        } finally {
+            setLoading(false);
         }
-        
-        console.log('Bons data extraits:', bonsData);
-        setBons(bonsData);
-    } catch (error) {
-        console.error('Erreur fetch:', error);
-        setBons([]);
-    } finally {
-        setLoading(false);
-    }
-};
+    };
 
     const handleViewDetails = async (bon) => {
         try {
@@ -80,6 +79,135 @@ const fetchBons = async () => {
     const totalArticlesRecus = bons.reduce((sum, bon) => {
         return sum + (bon.lignes?.reduce((s, l) => s + (l.quantite_recue || 0), 0) || 0);
     }, 0);
+    const printBon = (bon) => {
+        const printWindow = window.open('', '_blank');
+        const date = new Date().toLocaleDateString('fr-FR');
+        const time = new Date().toLocaleTimeString('fr-FR');
+        
+        // Calculer le total des articles
+        const totalQuantite = bon.lignes?.reduce((sum, l) => sum + (l.quantite_recue || 0), 0) || 0;
+        
+        // Style pour l'impression
+        const styles = `
+            <style>
+                @media print {
+                    body { margin: 0; padding: 20px; }
+                    .no-print { display: none; }
+                    button { display: none; }
+                }
+                body { font-family: 'DejaVu Sans', Arial, sans-serif; margin: 20px; font-size: 12px; }
+                .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1e293b; padding-bottom: 15px; }
+                .header h1 { margin: 0; color: #1e293b; font-size: 24px; }
+                .header p { margin: 5px 0 0; color: #64748b; font-size: 12px; }
+                .info { margin-bottom: 20px; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; background: #f8fafc; }
+                .info table { width: 100%; }
+                .info td { padding: 5px; }
+                .info .label { font-weight: bold; width: 120px; }
+                table.data { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                table.data th { background: #f1f5f9; border: 1px solid #e2e8f0; padding: 10px; text-align: left; font-weight: bold; font-size: 11px; }
+                table.data td { border: 1px solid #e2e8f0; padding: 8px; font-size: 11px; }
+                .total { margin-top: 20px; text-align: right; font-weight: bold; font-size: 14px; }
+                .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+                .signatures { margin-top: 40px; display: flex; justify-content: space-between; }
+                .signature { text-align: center; width: 200px; }
+                .signature .line { border-top: 1px solid #1e293b; margin-top: 50px; padding-top: 5px; font-size: 10px; }
+                .text-center { text-align: center; }
+                .text-right { text-align: right; }
+                .bold { font-weight: bold; }
+            </style>
+        `;
+        
+        // Générer le HTML du bon de réception
+        let html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Bon de réception N° ${bon.numero_bon}</title>
+                ${styles}
+            </head>
+            <body>
+                <div class="header">
+                    <h1>BON DE RÉCEPTION N° ${bon.numero_bon}</h1>
+                    <p>Institut Spécialisé de Technologie Appliquée Hôtelière et Touristique de Tanger</p>
+                    <p>Imprimé le ${date} à ${time}</p>
+                </div>
+                
+                <div class="info">
+                    <table>
+                        <tr>
+                            <td class="label">Date de réception :</td>
+                            <td>${new Date(bon.date_reception).toLocaleDateString('fr-FR')}</td>
+                            <td class="label">N° Commande :</td>
+                            <td>${bon.commande_fournisseur?.numero_commande || '—'}</td>
+                        </tr>
+                        <tr>
+                            <td class="label">Fournisseur :</td>
+                            <td>${bon.commande_fournisseur?.fournisseur || '—'}</td>
+                            <td class="label">Bon N° :</td>
+                            <td>${bon.numero_bon}</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <h3>Articles reçus</h3>
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th>Code barre</th>
+                            <th>Désignation</th>
+                            <th>Unité</th>
+                            <th class="text-center">Quantité reçue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        bon.lignes?.forEach(ligne => {
+            html += `
+                <tr>
+                    <td>${ligne.article?.code_barre || '—'}</td>
+                    <td>${ligne.article?.designation || '—'}</td>
+                    <td>${ligne.article?.unite_mesure || 'Pièce'}</td>
+                    <td class="text-center">${ligne.quantite_recue}</td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="text-right bold">Total :</td>
+                            <td class="text-center bold">${totalQuantite}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                
+                <div class="signatures">
+                    <div class="signature">
+                        <div class="line">Signature du magasinier</div>
+                    </div>
+                    <div class="signature">
+                        <div class="line">Cachet de l'établissement</div>
+                    </div>
+                </div>
+                
+                <div class="footer">
+                    <p>ISTAHT Tanger - Service de gestion des stocks</p>
+                    <p>Document généré automatiquement - Fait foi de la réception des articles</p>
+                </div>
+                
+                <div class="no-print" style="text-align: center; margin-top: 20px;">
+                    <button onclick="window.print()" style="padding: 10px 20px; background: #1e293b; color: white; border: none; border-radius: 5px; cursor: pointer;"> Imprimer</button>
+                    <button onclick="window.close()" style="padding: 10px 20px; background: #ef4444; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;"> Fermer</button>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        printWindow.document.write(html);
+        printWindow.document.close();
+    };
 
     if (loading) {
         return (
@@ -90,10 +218,10 @@ const fetchBons = async () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
+        <div className="min-h-screen bg-gray-50">
             {/* En-tête avec stats */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-800 tracking-tight">📄 Bons de réception</h1>
+                <h1 className="text-2xl font-bold text-gray-800 tracking-tight"> Bons de réception</h1>
                 <p className="text-sm text-gray-500 mt-0.5">Consultez et gérez les bons de réception des commandes fournisseurs</p>
             </div>
 
@@ -237,6 +365,7 @@ const fetchBons = async () => {
                                                     <Download size={16} />
                                                 </button>
                                                 <button 
+                                                    onClick={() => printBon(bon)}
                                                     className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg transition"
                                                     title="Imprimer"
                                                 >

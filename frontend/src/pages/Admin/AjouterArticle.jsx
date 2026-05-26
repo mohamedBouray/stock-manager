@@ -1,5 +1,6 @@
+// src/pages/Admin/AjouterArticle.jsx
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, Trash2, RefreshCw, Save, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { Package, XCircle, Plus, RefreshCw, Save, CheckCircle, Download, Upload, FileSpreadsheet, FolderTree, Layers } from 'lucide-react';
 import api from '../../lib/apis/axios';
 import ActionConfirmModal from '../../lib/components/ActionConfirmModal';
 
@@ -7,6 +8,14 @@ export default function AjouterArticle() {
   const [catalogue, setCatalogue] = useState([]);
   const [magasins, setMagasins] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importResult, setImportResult] = useState(null);
+  
+  // 🔥 Type d'import/export (articles, familles, categories)
+  const [importType, setImportType] = useState('articles');
+  const [showTemplateMenu, setShowTemplateMenu] = useState(false);
 
   const [familleSelectionnee, setFamilleSelectionnee] = useState('');
   const [categorieSelectionnee, setCategorieSelectionnee] = useState('');
@@ -75,6 +84,166 @@ export default function AjouterArticle() {
     }
   };
 
+  // ============================================================
+  // 🔥 TELECHARGER TEMPLATE
+  // ============================================================
+  const handleDownloadTemplate = async (type) => {
+    setExportLoading(true);
+    try {
+      const response = await api.get(`/api/admin/template?type=${type}`, { responseType: 'blob' });
+      
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `template_import_${type}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      
+      openConfirmModal('success', 'Succès', `Template ${type} téléchargé avec succès`, 'OK', null);
+    } catch (error) {
+      openConfirmModal('danger', 'Erreur', 'Erreur lors du téléchargement du template', 'OK', null);
+    } finally {
+      setExportLoading(false);
+      setShowTemplateMenu(false);
+    }
+  };
+
+  // ============================================================
+  // 🔥 EXPORT ARTICLES
+  // ============================================================
+  const handleExportArticles = async () => {
+    setExportLoading(true);
+    try {
+      const response = await api.get('/api/admin/export/articles', { responseType: 'blob' });
+      
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `articles_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      
+      openConfirmModal('success', 'Succès', 'Export des articles réussi', 'OK', null);
+    } catch (error) {
+      openConfirmModal('danger', 'Erreur', 'Erreur lors de l\'export des articles', 'OK', null);
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  // ============================================================
+  // 🔥 EXPORT FAMILLES
+  // ============================================================
+  const handleExportFamilles = async () => {
+    setExportLoading(true);
+    try {
+      const response = await api.get('/api/admin/export/familles', { responseType: 'blob' });
+      
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `familles_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      
+      openConfirmModal('success', 'Succès', 'Export des familles réussi', 'OK', null);
+    } catch (error) {
+      openConfirmModal('danger', 'Erreur', 'Erreur lors de l\'export des familles', 'OK', null);
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  // ============================================================
+  // 🔥 EXPORT CATEGORIES
+  // ============================================================
+  const handleExportCategories = async () => {
+    setExportLoading(true);
+    try {
+      const response = await api.get('/api/admin/export/categories', { responseType: 'blob' });
+      
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `categories_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      
+      openConfirmModal('success', 'Succès', 'Export des catégories réussi', 'OK', null);
+    } catch (error) {
+      openConfirmModal('danger', 'Erreur', 'Erreur lors de l\'export des catégories', 'OK', null);
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
+  // ============================================================
+  // 🔥 IMPORT GENERIQUE
+  // ============================================================
+  const handleImport = async () => {
+    if (!importFile) {
+      openConfirmModal('warning', 'Attention', 'Veuillez sélectionner un fichier', 'OK', null);
+      return;
+    }
+    
+    setImportLoading(true);
+    setImportResult(null);
+    
+    const formData = new FormData();
+    formData.append('file', importFile);
+    
+    // Routes selon le type
+    const routes = {
+      articles: '/api/admin/import/articles',
+      familles: '/api/admin/import/familles',
+      categories: '/api/admin/import/categories'
+    };
+    
+    try {
+      const response = await api.post(routes[importType], formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      
+      setImportResult({
+        success: true,
+        message: response.data.message || 'Import réussi',
+        count: response.data.importes || 0,
+        errors: response.data.erreurs || [],
+        warnings: response.data.avertissements || []
+      });
+      
+      setImportFile(null);
+      document.getElementById('import_file').value = '';
+      openConfirmModal('success', 'Succès', `${response.data.importes || 0} élément(s) importé(s)`, () => {
+        chargerDonnees();
+      });
+    } catch (error) {
+      setImportResult({
+        success: false,
+        message: error.response?.data?.message || 'Erreur lors de l\'import',
+        errors: error.response?.data?.erreurs || []
+      });
+      openConfirmModal('danger', 'Erreur', error.response?.data?.message || 'Erreur lors de l\'import', 'OK', null);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  // ============================================================
+  // 🔥 GESTION FAMILLE / CATEGORIE / MAGASIN
+  // ============================================================
   const handleAddFamille = async (e) => {
     e.preventDefault();
     if (!nouvelleFamille.trim()) return;
@@ -230,17 +399,152 @@ export default function AjouterArticle() {
     );
   }
 
+  // Labels pour l'affichage
+  const importLabels = {
+    articles: { label: 'Articles', icon: <Package size={16} /> },
+    familles: { label: 'Familles', icon: <FolderTree size={16} /> },
+    categories: { label: 'Catégories', icon: <Layers size={16} /> }
+  };
+
   return (
-    <div >
-      {/* En-tête */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
-          Ajouter un article
-        </h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Ajoutez un nouvel article au catalogue
-        </p>
+    <div>
+      {/* En-tête avec boutons Import/Export */}
+      <div className="flex justify-between items-center mb-6 flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
+            Ajouter un article
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Ajoutez un nouvel article au catalogue
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {/* Menu Templates */}
+          <div className="relative">
+            <button
+              onClick={() => setShowTemplateMenu(!showTemplateMenu)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-semibold transition shadow-sm"
+            >
+              <FileSpreadsheet size={16} /> Templates
+            </button>
+            {showTemplateMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border z-10">
+                <button
+                  onClick={() => handleDownloadTemplate('articles')}
+                  className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                >
+                  <Package size={14} /> Template Articles
+                </button>
+                <button
+                  onClick={() => handleDownloadTemplate('familles')}
+                  className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                >
+                  <FolderTree size={14} /> Template Familles
+                </button>
+                <button
+                  onClick={() => handleDownloadTemplate('categories')}
+                  className="flex items-center gap-2 w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                >
+                  <Layers size={14} /> Template Catégories
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Exports */}
+          <button
+            onClick={handleExportArticles}
+            disabled={exportLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition shadow-sm disabled:opacity-50"
+          >
+            <Download size={16} /> {exportLoading ? 'Export...' : 'Exporter Articles'}
+          </button>
+
+          <button
+            onClick={handleExportFamilles}
+            disabled={exportLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold transition shadow-sm disabled:opacity-50"
+          >
+            <Download size={16} /> Exporter Familles
+          </button>
+
+          <button
+            onClick={handleExportCategories}
+            disabled={exportLoading}
+            className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold transition shadow-sm disabled:opacity-50"
+          >
+            <Download size={16} /> Exporter Catégories
+          </button>
+
+          {/* Sélecteur type d'import */}
+          <select
+            value={importType}
+            onChange={(e) => setImportType(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+          >
+            <option value="articles">📦 Importer Articles</option>
+            <option value="familles">📁 Importer Familles</option>
+            <option value="categories">📚 Importer Catégories</option>
+          </select>
+
+          {/* Bouton choisir fichier */}
+          <label className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition shadow-sm cursor-pointer">
+            <Upload size={16} /> Choisir fichier
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls,.txt"
+              onChange={(e) => setImportFile(e.target.files[0])}
+              className="hidden"
+              id="import_file"
+            />
+          </label>
+
+          {/* Bouton importer */}
+          {importFile && (
+            <button
+              onClick={handleImport}
+              disabled={importLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition shadow-sm disabled:opacity-50"
+            >
+              <Upload size={16} /> {importLoading ? 'Import...' : `Importer ${importLabels[importType]?.label || importType}`}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Résultat d'import */}
+      {importResult && (
+        <div className={`mb-6 p-4 rounded-xl ${importResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+          <div className="flex items-center gap-2 mb-2">
+            {importResult.success ? <CheckCircle size={18} className="text-green-600" /> : <XCircle size={18} className="text-red-600" />}
+            <span className={`text-sm font-medium ${importResult.success ? 'text-green-700' : 'text-red-700'}`}>{importResult.message}</span>
+          </div>
+          {importResult.count > 0 && (
+            <p className="text-xs text-green-600">✅ {importResult.count} élément(s) importé(s)</p>
+          )}
+          {importResult.warnings && importResult.warnings.length > 0 && (
+            <div className="mt-2">
+              <p className="text-xs text-yellow-600 font-medium">⚠️ Avertissements:</p>
+              <ul className="text-xs text-yellow-500 mt-1 list-disc list-inside max-h-32 overflow-y-auto">
+                {importResult.warnings.slice(0, 3).map((err, i) => <li key={i}>{err}</li>)}
+                {importResult.warnings.length > 3 && <li>... et {importResult.warnings.length - 3} autres</li>}
+              </ul>
+            </div>
+          )}
+          {importResult.errors && importResult.errors.length > 0 && (
+            <div className="mt-2">
+              <p className="text-xs text-red-600 font-medium">⚠️ Erreurs:</p>
+              <ul className="text-xs text-red-500 mt-1 list-disc list-inside max-h-32 overflow-y-auto">
+                {importResult.errors.slice(0, 5).map((err, i) => <li key={i}>{err}</li>)}
+                {importResult.errors.length > 5 && <li>... et {importResult.errors.length - 5} autres</li>}
+              </ul>
+            </div>
+          )}
+          <button onClick={() => setImportResult(null)} className="mt-2 text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
+            <RefreshCw size={12} /> Effacer
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-6">
