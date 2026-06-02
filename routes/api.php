@@ -247,6 +247,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/settings/backup', [SettingsController::class, 'backup']);
         Route::post('/settings/{group}', [SettingsController::class, 'update']);
         Route::post('/settings/{group}/reset', [SettingsController::class, 'reset']);
+
+        Route::get('/system/stats', [AdminUserController::class, 'systemStats']);
+        Route::get('/mouvements/trends', [AdminUserController::class, 'mouvementTrends']);
+        Route::get('/mouvements/recent', [AdminUserController::class, 'recentMouvements']);
     });
 
     // ===================================================================

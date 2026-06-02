@@ -14,6 +14,20 @@ const api = axios.create({
 let setLoadingGlobal = null;
 let activeRequests = 0;
 
+// ✅ SYSTÈME DE CACHE POUR LES GET
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const responseCache = new Map();
+
+// Nettoyer le cache toutes les heures
+setInterval(() => {
+    const now = Date.now();
+    for (const [key, { timestamp }] of responseCache.entries()) {
+        if (now - timestamp > CACHE_DURATION) {
+            responseCache.delete(key);
+        }
+    }
+}, 60 * 60 * 1000);
+
 export const attachLoadingHandler = (fn) => {
     setLoadingGlobal = fn;
 };
@@ -30,6 +44,12 @@ const updateLoading = (increment) => {
     }
 };
 
+// ✅ GÉNÉRER UNE CLÉ DE CACHE UNIQUE
+const getCacheKey = (config) => {
+    return `${config.method}:${config.url}:${JSON.stringify(config.params)}:${JSON.stringify(config.data)}`;
+};
+
+// ✅ INTERCEPTEUR REQUÊTE OPTIMISÉ
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem("token");
@@ -37,11 +57,14 @@ api.interceptors.request.use(
             config.headers.Authorization = `Bearer ${token}`;
         }
         
-        if (config.method === 'get') {
+        // ✅ NE PAS AJOUTER _t POUR LE CACHE !!
+        // On ajoute seulement pour les requêtes importantes
+        if (config.params?.noCache === true) {
             config.params = {
                 ...config.params,
                 _t: Date.now()
             };
+            delete config.params.noCache;
         }
         
         updateLoading(1);
@@ -54,13 +77,21 @@ api.interceptors.request.use(
     }
 );
 
-const triggerBlockedEvent = (email) => {
-    window.dispatchEvent(new CustomEvent('user-blocked', { detail: { email } }));
-};
-
+// ✅ INTERCEPTEUR RÉPONSE AVEC CACHE
 api.interceptors.response.use(
     (response) => {
         updateLoading(-1);
+        
+        // ✅ Mettre en cache les réponses GET uniquement
+        if (response.config.method === 'get') {
+            const cacheKey = getCacheKey(response.config);
+            responseCache.set(cacheKey, {
+                data: response.data,
+                timestamp: Date.now(),
+                config: response.config
+            });
+        }
+        
         return response;
     },
     (error) => {
@@ -69,9 +100,7 @@ api.interceptors.response.use(
         const { status, data } = error.response || {};
         const currentPath = window.location.pathname;
 
-
         if (status === 403 && data?.message?.includes('bloqué')) {
-        
             let email = '';
             const userString = localStorage.getItem('user');
             if (userString) {
@@ -81,12 +110,10 @@ api.interceptors.response.use(
                 } catch(e) {}
             }
             
-            // Nettoyer localStorage
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             
-            triggerBlockedEvent(email);
-            
+            window.dispatchEvent(new CustomEvent('user-blocked', { detail: { email } }));
             return Promise.reject(error);
         }
 
@@ -118,10 +145,6 @@ api.interceptors.response.use(
             console.error("API Endpoint not found:", error.config?.url);
         }
 
-        if (status === 422) {
-            return Promise.reject(error);
-        }
-
         if (status === 500) {
             console.error("Server Error:", data?.message || "Internal Server Error");
         }
@@ -133,5 +156,47 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+// ✅ FONCTION POUR RÉCUPÉRER AVEC CACHE (utiliser dans vos composants)
+export const getWithCache = async (url, options = {}) => {
+    const { forceRefresh = false, params = {}, cacheTime = CACHE_DURATION } = options;
+    
+    const config = {
+        method: 'get',
+        url,
+        params: forceRefresh ? { ...params, noCache: true } : params
+    };
+    
+    const cacheKey = getCacheKey(config);
+    
+    // Vérifier le cache
+    if (!forceRefresh && responseCache.has(cacheKey)) {
+        const cached = responseCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < cacheTime) {
+            console.log(`✅ Cache hit for: ${url}`);
+            return cached.data;
+        }
+    }
+    
+    console.log(`🔄 Cache miss for: ${url}`);
+    const response = await api(config);
+    return response.data;
+};
+
+
+export const clearCache = () => {
+    responseCache.clear();
+    console.log('🗑️ Cache vidé');
+};
+
+
+export const invalidateCache = (url) => {
+    for (const [key, value] of responseCache.entries()) {
+        if (value.config?.url === url) {
+            responseCache.delete(key);
+        }
+    }
+    console.log(`🗑️ Cache invalidé pour: ${url}`);
+};
 
 export default api;

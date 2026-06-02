@@ -36,7 +36,7 @@ import Retours from './pages/Admin/Retours';
 import CommandesMinistere from './pages/Admin/Demande';
 import TraiterCommandes from './pages/Admin/TraiterCommandes';
 import Rapports from './pages/Admin/Rapports';
-import ExportImport from './pages/Admin/ExportImport';
+// import ExportImport from './pages/Admin/ExportImport';
 // Administration
 import Administration from './pages/Admin/Utilisateurs';
 import SettingsPanel from './pages/Admin/SettingsPanel';
@@ -215,7 +215,7 @@ function AppContent() {
                         <Route path="/admin/commandes" element={<CommandesMinistere />} />
                         <Route path="/admin/traiter-commandes" element={<TraiterCommandes />} />
                         <Route path="/admin/rapports" element={<Rapports />} />
-                        <Route path="/admin/export" element={<ExportImport />} />
+                        {/* <Route path="/admin/export" element={<ExportImport />} /> */}
                         {/* Administration */}
                         <Route path="/admin/utilisateurs" element={<Administration />} />
                         <Route path="/admin/parametres" element={<SettingsPanel />} />

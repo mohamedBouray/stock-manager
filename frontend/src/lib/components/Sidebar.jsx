@@ -78,7 +78,6 @@ const MENU_SECTIONS = {
                 { label: 'Commandes Fournisseurs', icon: ShoppingCart, path: '/admin/commandes' },
                 { label: 'Traiter Réceptions', icon: ClipboardList, path: '/admin/traiter-commandes' },
                 { label: 'Rapports & Éditions', icon: FileBarChart, path: '/admin/rapports' },
-                { label: 'Export/Import', icon: Upload, path: '/admin/export' },
             ],
         },
         {
