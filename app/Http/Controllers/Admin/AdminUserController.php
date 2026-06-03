@@ -14,6 +14,7 @@ use App\Helpers\NotificationHelper;
 use App\Models\Admin\Article;           
 use App\Models\Admin\CommandeFournisseur; 
 use App\Models\Admin\Mouvement; 
+use Illuminate\Support\Facades\Cache;
 
 class AdminUserController extends Controller
 {
@@ -270,66 +271,6 @@ class AdminUserController extends Controller
     }
     
     // Statistiques système
-    public function systemStats()
-    {
-        try {
-            $this->checkAdmin();
-            
-            $totalUsers = User::count();
-            $activeUsers = User::where('is_blocked', false)->count();
-            $blockedUsers = User::where('is_blocked', true)->count();
-            
-            $activePercentage = $totalUsers > 0 ? round(($activeUsers / $totalUsers) * 100) : 0;
-            $blockedPercentage = $totalUsers > 0 ? round(($blockedUsers / $totalUsers) * 100) : 0;
-            
-            $newUsersThisMonth = User::whereMonth('created_at', now()->month)
-                ->whereYear('created_at', now()->year)
-                ->count();
-            
-            $stats = [
-                'total_users' => $totalUsers,
-                'active_users' => $activeUsers,
-                'blocked_users' => $blockedUsers,
-                'active_percentage' => $activePercentage,       
-                'blocked_percentage' => $blockedPercentage,      
-                'new_users_this_month' => $newUsersThisMonth,   
-                'admins' => User::where('role', 'admin')->count(),
-                'magasiniers' => User::where('role', 'magasinier')->count(),
-                'demandeurs' => User::where('role', 'user')->count(),
-                'users_last_week' => User::where('created_at', '>=', now()->subDays(7))->count(),
-                'recent_activities' => UserActivity::with('user')
-                    ->orderBy('created_at', 'desc')
-                    ->limit(10)
-                    ->get()
-                    ->map(function($activity) {
-                        return [
-                            'id' => $activity->id,
-                            'user' => $activity->user ? ['name' => $activity->user->name] : null,
-                            'action' => $activity->action,
-                            'details' => $activity->details,
-                            'created_at' => $activity->created_at
-                        ];
-                    }),
-            ];
-            
-            return response()->json($stats);
-        } catch (\Exception $e) {
-            Log::error('Error in systemStats: ' . $e->getMessage());
-            return response()->json([
-                'total_users' => 0,
-                'active_users' => 0,
-                'blocked_users' => 0,
-                'active_percentage' => 0,
-                'blocked_percentage' => 0,
-                'new_users_this_month' => 0,
-                'admins' => 0,
-                'magasiniers' => 0,
-                'demandeurs' => 0,
-                'users_last_week' => 0,
-                'recent_activities' => []
-            ], 200);
-        }
-    }
 public function updateMagasin(Request $request, $id)
 {
     try {
@@ -392,4 +333,232 @@ public function getMagasiniersWithMagasin()
         ], 500);
     }
 }
+public function systemStats()
+{
+    try {
+        $this->checkAdmin();
+        
+        // ✅ Cache des résultats pour 5 minutes
+        $stats = Cache::remember('dashboard_system_stats', 300, function () {
+            return [
+                'total_articles' => Article::count(),
+                'total_commandes' => CommandeFournisseur::count(),
+                'stocks_alertes' => Article::whereRaw('quantite_stock <= seuil_alerte')->count(),
+                'mouvements_semaine' => Mouvement::where('created_at', '>=', now()->subDays(7))->sum('quantite'),
+                'commandes_en_attente' => CommandeFournisseur::where('statut', 'envoyee')->count(),
+                'active_users' => User::where('is_blocked', false)->where('status', true)->count(),
+                'demandes_mois' => DB::table('demandes')
+                    ->whereMonth('created_at', now()->month)
+                    ->whereYear('created_at', now()->year)
+                    ->count(),
+                'valeur_stock_total' => DB::table('stocks')
+                    ->join('articles', 'stocks.article_id', '=', 'articles.id')
+                    ->select(DB::raw('SUM(stocks.quantite_disponible * COALESCE(articles.prix_unitaire, 0)) as total'))
+                    ->value('total') ?? 0,
+                'recent_activities' => UserActivity::with('user')
+                    ->orderBy('created_at', 'desc')
+                    ->limit(10)
+                    ->get()
+                    ->map(function($activity) {
+                        return [
+                            'id' => $activity->id,
+                            'action' => $activity->action,
+                            'details' => $activity->details ?: $this->getActionLabel($activity->action),
+                            'user_name' => $activity->user?->name,
+                            'created_at' => $activity->created_at,
+                        ];
+                    }),
+            ];
+        });
+        
+        return response()->json($stats);    
+    } catch (\Exception $e) {
+        Log::error('Error in systemStats: ' . $e->getMessage());
+        return response()->json([
+            'total_articles' => 0,
+            'total_commandes' => 0,
+            'stocks_alertes' => 0,
+            'mouvements_semaine' => 0,
+            'commandes_en_attente' => 0,
+            'active_users' => 0,
+            'demandes_mois' => 0,
+            'valeur_stock_total' => 0,
+            'stock_par_categorie' => [],
+            'recent_activities' => []
+        ], 200);
+    }
+}
+
+/**
+ * Récupérer les tendances des mouvements pour les graphiques
+ */
+public function mouvementTrends(Request $request)
+{
+    try {
+        $this->checkAdmin();
+        
+        $period = $request->get('period', 'week');
+        
+        if ($period === 'year') {
+            $data = Mouvement::select(
+                    DB::raw('MONTH(created_at) as month'),
+                    DB::raw('SUM(CASE WHEN type = "entree" THEN quantite ELSE 0 END) as entries'),
+                    DB::raw('SUM(CASE WHEN type = "sortie" THEN quantite ELSE 0 END) as exits')
+                )
+                ->whereYear('created_at', now()->year)
+                ->groupBy('month')
+                ->orderBy('month')
+                ->get();
+                
+            $entries = array_fill(0, 12, 0);
+            $exits = array_fill(0, 12, 0);
+            
+            foreach ($data as $d) {
+                $entries[$d->month - 1] = (int) $d->entries;
+                $exits[$d->month - 1] = (int) $d->exits;
+            }
+            
+            return response()->json(['entries' => $entries, 'exits' => $exits]);
+        }
+        
+        $days = $period === 'week' ? 7 : 30;
+        $startDate = now()->subDays($days);
+        
+        $data = Mouvement::select(
+                DB::raw('DATE(created_at) as date'),
+                DB::raw('SUM(CASE WHEN type = "entree" THEN quantite ELSE 0 END) as entries'),
+                DB::raw('SUM(CASE WHEN type = "sortie" THEN quantite ELSE 0 END) as exits')
+            )
+            ->where('created_at', '>=', $startDate)
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get()
+            ->keyBy('date');
+        
+        $entries = [];
+        $exits = [];
+        $labels = [];
+        
+        for ($i = 0; $i < $days; $i++) {
+            $date = now()->subDays($days - 1 - $i);
+            $dateKey = $date->format('Y-m-d');
+            $labels[] = $date->format('d/m');
+            $entries[] = (int) ($data[$dateKey]->entries ?? 0);
+            $exits[] = (int) ($data[$dateKey]->exits ?? 0);
+        }
+        
+        return response()->json([
+            'labels' => $labels,
+            'entries' => $entries, 
+            'exits' => $exits
+        ]);
+        
+    } catch (\Exception $e) {
+        Log::error('Error in mouvementTrends: ' . $e->getMessage());
+        return response()->json(['entries' => [], 'exits' => []], 200);
+    }
+}
+
+/**
+ * Récupérer les mouvements récents
+ */
+public function recentMouvements()
+{
+    try {
+        $this->checkAdmin();
+        
+        $mouvements = Mouvement::with(['article', 'user', 'magasin'])
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get()
+            ->map(function($mvt) {
+                return [
+                    'id' => $mvt->id,
+                    'type' => $mvt->type,
+                    'quantite' => $mvt->quantite,
+                    'article' => $mvt->article?->designation,
+                    'user_name' => $mvt->user?->name,
+                    'magasin_name' => $mvt->magasin?->nom_magasin,
+                    'created_at' => $mvt->created_at,
+                ];
+            });
+        
+        return response()->json($mouvements);
+        
+    } catch (\Exception $e) {
+        Log::error('Error in recentMouvements: ' . $e->getMessage());
+        return response()->json([], 200);
+    }
+}
+
+/**
+ * Export des utilisateurs en CSV/Excel
+ */
+public function export(Request $request)
+{
+    try {
+        $this->checkAdmin();
+        
+        $users = User::all();
+        
+        $filename = 'utilisateurs_' . date('Y-m-d_His') . '.csv';
+        $handle = fopen('php://temp', 'w');
+        
+        // En-têtes CSV
+        fputcsv($handle, ['ID', 'Nom', 'Email', 'Rôle', 'Magasin ID', 'Bloqué', 'Créé le', 'Dernière connexion']);
+        
+        foreach ($users as $user) {
+            fputcsv($handle, [
+                $user->id,
+                $user->name,
+                $user->email,
+                $user->role,
+                $user->magasin_id ?? '',
+                $user->is_blocked ? 'Oui' : 'Non',
+                $user->created_at,
+                $user->last_login_at ?? '',
+            ]);
+        }
+        
+        rewind($handle);
+        $csvContent = stream_get_contents($handle);
+        fclose($handle);
+        
+        return response($csvContent, 200)
+            ->header('Content-Type', 'text/csv')
+            ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+            
+    } catch (\Exception $e) {
+        Log::error('Error in export: ' . $e->getMessage());
+        return response()->json(['message' => 'Erreur lors de l\'export'], 500);
+    }
+}
+
+/**
+ * Obtenir le libellé d'une action
+ */
+private function getActionLabel($action)
+{
+    $labels = [
+        'user_login' => 'Connexion utilisateur',
+        'user_logout' => 'Déconnexion',
+        'user_created' => 'Nouveau compte créé',
+        'user_updated' => 'Compte modifié',
+        'user_blocked' => 'Compte bloqué',
+        'user_unblocked' => 'Compte débloqué',
+        'user_deleted' => 'Compte supprimé',
+        'password_changed' => 'Mot de passe modifié',
+        'password_reset' => 'Mot de passe réinitialisé',
+        'demande_created' => 'Nouvelle demande',
+        'demande_approuvee' => 'Demande approuvée',
+        'demande_refusee' => 'Demande refusée',
+        'demande_livree' => 'Demande livrée',
+        'stock_entree' => 'Entrée de stock',
+        'stock_sortie' => 'Sortie de stock',
+        'stock_ajustement' => 'Ajustement de stock',
+    ];
+    
+    return $labels[$action] ?? $action;
+}
+
 }
