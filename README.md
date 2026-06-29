@@ -67,47 +67,14 @@
 | 📝 **Demandeur** | Formulation des demandes, réservation, suivi en temps réel, historique de consommation |
 
 ---
-
 ## 🏗️ Architecture Technique
-┌─────────────────────────────────────────────────────────────────────┐
-│ ARCHITECTURE TECHNIQUE │
-├─────────────────────────────────────────────────────────────────────┤
-│ │
-│ ┌─────────────────────────────────────────────────────────────┐ │
-│ │ 🌐 CLIENT (FRONTEND) │ │
-│ │ ───────────────────────────────────────────────────────── │ │
-│ │ • React JS (SPA) │ │
-│ │ • Tailwind CSS │ │
-│ │ • Axios (HTTP Client) │ │
-│ │ • React Router │ │
-│ └───────────────────────────┬─────────────────────────────────┘ │
-│ │ │
-│ 🔄 API REST (JSON) │
-│ │ │
-│ ┌───────────────────────────▼─────────────────────────────────┐ │
-│ │ 🖥️ SERVEUR (BACKEND) │ │
-│ │ ───────────────────────────────────────────────────────── │ │
-│ │ • Laravel (PHP) │ │
-│ │ • API RESTful │ │
-│ │ • Eloquent ORM │ │
-│ │ • Laravel Sanctum (Auth) │ │
-│ │ • Middleware (RBAC) │ │
-│ └───────────────────────────┬─────────────────────────────────┘ │
-│ │ │
-│ 🔗 SQLite │
-│ │ │
-│ ┌───────────────────────────▼─────────────────────────────────┐ │
-│ │ 💾 BASE DE DONNÉES │ │
-│ │ ───────────────────────────────────────────────────────── │ │
-│ │ • SQLite (Serverless) │ │
-│ │ • Transactions ACID │ │
-│ │ • Intégrité référentielle │ │
-│ │ • Sauvegarde automatique │ │
-│ └─────────────────────────────────────────────────────────────┘ │
-│ │
-└─────────────────────────────────────────────────────────────────────┘
 
-text
+| Couche | Technologie | Rôle |
+|--------|-------------|------|
+| **Client (Frontend)** | React JS, Tailwind CSS, Axios, React Router | Interface utilisateur dynamique et réactive |
+| **Communication** | API REST (JSON) | Échange de données entre Frontend et Backend |
+| **Serveur (Backend)** | Laravel, Eloquent ORM, Sanctum, RBAC | Logique métier, authentification, autorisation |
+| **Base de données** | SQLite | Persistance des données, transactions ACID |
 
 ---
 
